@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../users/models/person.dart';
 import '../models/action_record.dart';
 
 class ActionDetailsScreen extends StatelessWidget {
@@ -66,21 +67,48 @@ class ActionDetailsScreen extends StatelessWidget {
                           _detail('Assigned Worker', action.assignedTo),
                           if (action.primaryAssignee != null) ...[
                             _detail(
-                              'Primary Assignment Type',
-                              action.primaryAssignee!.typeLabel,
+                              action.primaryAssignee!.type ==
+                                      PersonType.internalUser
+                                  ? 'Internal Primary Person'
+                                  : 'External Primary Person',
+                              '${action.primaryAssignee!.name} • ${action.primaryAssignee!.typeLabel}',
                             ),
                             _detail(
                               'Primary Contact',
                               '${action.primaryAssignee!.email} / ${action.primaryAssignee!.phone}',
                             ),
                           ],
-                          if (action.additionalPeople.isNotEmpty)
+                          if (action.additionalPeople.any(
+                            (person) => person.type == PersonType.internalUser,
+                          ))
                             _detail(
-                              'Additional People',
+                              'Additional Internal People',
                               action.additionalPeople
+                                  .where(
+                                    (person) =>
+                                        person.type == PersonType.internalUser,
+                                  )
                                   .map(
                                     (person) =>
-                                        '${person.name} (${person.typeLabel})',
+                                        '${person.name} • ${person.email}',
+                                  )
+                                  .join(', '),
+                            ),
+                          if (action.additionalPeople.any(
+                            (person) =>
+                                person.type == PersonType.externalWorker,
+                          ))
+                            _detail(
+                              'Additional External People',
+                              action.additionalPeople
+                                  .where(
+                                    (person) =>
+                                        person.type ==
+                                        PersonType.externalWorker,
+                                  )
+                                  .map(
+                                    (person) =>
+                                        '${person.name} • ${person.email}',
                                   )
                                   .join(', '),
                             ),

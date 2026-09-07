@@ -17,6 +17,7 @@ class Person {
     this.division = '',
     this.site = '',
     this.company = '',
+    this.notes = '',
   });
 
   final String id;
@@ -32,6 +33,7 @@ class Person {
   final String division;
   final String site;
   final String company;
+  final String notes;
 
   String get typeLabel => type == PersonType.internalUser
       ? 'Internal ActionFlow User'
@@ -49,6 +51,7 @@ class Person {
     String? division,
     String? site,
     String? company,
+    String? notes,
     UserRole? role,
     List<String>? teamIds,
   }) {
@@ -66,6 +69,7 @@ class Person {
       division: division ?? this.division,
       site: site ?? this.site,
       company: company ?? this.company,
+      notes: notes ?? this.notes,
     );
   }
 }
@@ -78,7 +82,10 @@ class ActionPersonReference {
     this.email = '',
     this.phone = '',
     this.designation = '',
+    this.department = '',
     this.site = '',
+    this.company = '',
+    this.notes = '',
   });
 
   final String personId;
@@ -87,8 +94,37 @@ class ActionPersonReference {
   final String email;
   final String phone;
   final String designation;
+  final String department;
   final String site;
+  final String company;
+  final String notes;
 
   String get typeLabel =>
       type == PersonType.internalUser ? 'Internal' : 'External';
+
+  ActionPersonReference copyWith({
+    String? personId,
+    String? name,
+    PersonType? type,
+    String? email,
+    String? phone,
+    String? designation,
+    String? department,
+    String? site,
+    String? company,
+    String? notes,
+  }) {
+    return ActionPersonReference(
+      personId: personId ?? this.personId,
+      name: name ?? this.name,
+      type: type ?? this.type,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      designation: designation ?? this.designation,
+      department: department ?? this.department,
+      site: site ?? this.site,
+      company: company ?? this.company,
+      notes: notes ?? this.notes,
+    );
+  }
 }

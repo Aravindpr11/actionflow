@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../data/mock_people_store.dart';
 import '../models/person.dart';
 import '../models/team.dart';
+import '../widgets/duplicate_person_dialog.dart';
 
 class PersonFormScreen extends StatefulWidget {
   const PersonFormScreen({this.person, super.key});
@@ -23,6 +24,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
   late final TextEditingController division;
   late final TextEditingController site;
   late final TextEditingController company;
+  late final TextEditingController notes;
   late PersonType type;
   late bool active;
   late UserRole role;
@@ -40,6 +42,7 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
     division = TextEditingController(text: person?.division);
     site = TextEditingController(text: person?.site);
     company = TextEditingController(text: person?.company);
+    notes = TextEditingController(text: person?.notes);
     type = person?.type ?? PersonType.internalUser;
     active = person?.isActive ?? true;
     role = person?.role ?? UserRole.actionOwnerWorker;
@@ -57,18 +60,42 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
       division,
       site,
       company,
+      notes,
     ]) {
       controller.dispose();
     }
     super.dispose();
   }
 
-  void save() {
+  Future<void> save() async {
     if (!formKey.currentState!.validate() ||
         (type == PersonType.internalUser && teamIds.isEmpty)) {
       setState(() {});
       return;
     }
+
+    final trimmedEmail = email.text.trim();
+    final trimmedPhone = phone.text.trim();
+
+    // Check for strong duplicate by email or phone (ignoring current person's own ID)
+    final duplicate = MockPeopleStore.instance.findDuplicate(
+      email: trimmedEmail,
+      phone: trimmedPhone,
+      excludeId: widget.person?.id,
+    );
+
+    if (duplicate != null) {
+      final chosen = await showDialog<Person>(
+        context: context,
+        builder: (context) => DuplicatePersonDialog(existingPerson: duplicate),
+      );
+      if (!mounted) return;
+      if (chosen != null) {
+        Navigator.of(context).pop(chosen);
+      }
+      return;
+    }
+
     final existing = widget.person;
     Navigator.of(context).pop(
       Person(
@@ -76,17 +103,22 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
             existing?.id ??
             '${type == PersonType.internalUser ? 'AFU' : 'EXT'}-${DateTime.now().millisecondsSinceEpoch % 1000}',
         name: name.text.trim(),
-        email: email.text.trim(),
-        phone: phone.text.trim(),
+        email: trimmedEmail,
+        phone: trimmedPhone,
         designation: designation.text.trim(),
-        department: department.text.trim(),
-        division: division.text.trim(),
+        department: type == PersonType.internalUser
+            ? department.text.trim()
+            : '',
+        division: type == PersonType.internalUser ? division.text.trim() : '',
         site: site.text.trim(),
-        company: company.text.trim(),
+        company: type == PersonType.externalWorker ? company.text.trim() : '',
+        notes: type == PersonType.externalWorker ? notes.text.trim() : '',
         type: type,
         isActive: active,
-        role: role,
-        teamIds: teamIds.toList(),
+        role: type == PersonType.internalUser
+            ? role
+            : UserRole.actionOwnerWorker,
+        teamIds: type == PersonType.internalUser ? teamIds.toList() : const [],
       ),
     );
   }
@@ -125,8 +157,9 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                       ),
                     ],
                     selected: {type},
-                    onSelectionChanged: (value) =>
-                        setState(() => type = value.first),
+                    onSelectionChanged: widget.person != null
+                        ? null
+                        : (value) => setState(() => type = value.first),
                   ),
                   const SizedBox(height: 10),
                   Text(
@@ -168,17 +201,24 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
                       ? 'EXTERNAL WORKER DETAILS'
                       : 'ACTIONFLOW ORGANISATION',
                   [
-                    if (external) _field('Company *', company),
+                    if (external) ...[
+                      _field('Company / Organization *', company),
+                      _field('Project / Site', site),
+                      _field('Notes', notes, maxLines: 2),
+                    ],
                     if (!external) ...[
                       _field('Department', department),
                       _field('Division', division),
                       _field('Site', site),
                     ],
-                    SwitchListTile.adaptive(
-                      title: const Text('Active person'),
-                      value: active,
-                      onChanged: (value) => setState(() => active = value),
-                      contentPadding: EdgeInsets.zero,
+                    Material(
+                      color: Colors.transparent,
+                      child: SwitchListTile.adaptive(
+                        title: const Text('Active person'),
+                        value: active,
+                        onChanged: (value) => setState(() => active = value),
+                        contentPadding: EdgeInsets.zero,
+                      ),
                     ),
                   ],
                 ),
@@ -265,9 +305,11 @@ class _PersonFormScreenState extends State<PersonFormScreen> {
   Widget _field(
     String label,
     TextEditingController controller, {
+    int maxLines = 1,
     TextInputType? keyboardType,
   }) => TextFormField(
     controller: controller,
+    maxLines: maxLines,
     keyboardType: keyboardType,
     validator: label.endsWith('*')
         ? (value) => value == null || value.trim().isEmpty

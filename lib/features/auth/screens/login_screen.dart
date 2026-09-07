@@ -188,11 +188,6 @@ class _BrandPanel extends StatelessWidget {
                   color: Colors.white,
                 ),
               ),
-              const SizedBox(height: 10),
-              const Text(
-                'HSSE Action Tracker',
-                style: TextStyle(fontSize: 22, color: Colors.white70),
-              ),
               const SizedBox(height: 24),
               Text(
                 'Track workplace actions, assignments, progress, pending work, completion and manager review.',
@@ -295,15 +290,21 @@ class _LoginCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(
+              Wrap(
+                alignment: WrapAlignment.spaceBetween,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
-                  Checkbox(
-                    value: rememberMe,
-                    onChanged: onRememberMeChanged,
-                    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Checkbox(
+                        value: rememberMe,
+                        onChanged: onRememberMeChanged,
+                        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      const Text('Remember me'),
+                    ],
                   ),
-                  const Text('Remember me'),
-                  const Spacer(),
                   TextButton(
                     onPressed: () {},
                     child: const Text('Forgot Password?'),

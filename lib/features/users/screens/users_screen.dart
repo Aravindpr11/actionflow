@@ -16,6 +16,30 @@ class _UsersScreenState extends State<UsersScreen> {
   final searchController = TextEditingController();
   String typeFilter = 'All Types';
   String statusFilter = 'All Statuses';
+  String departmentFilter = 'All Departments';
+  String siteFilter = 'All Sites';
+
+  List<String> get availableDepartments {
+    final set = <String>{};
+    for (final p in store.people) {
+      if (p.department.trim().isNotEmpty) {
+        set.add(p.department.trim());
+      }
+    }
+    final list = set.toList()..sort();
+    return ['All Departments', ...list];
+  }
+
+  List<String> get availableSites {
+    final set = <String>{};
+    for (final p in store.people) {
+      if (p.site.trim().isNotEmpty) {
+        set.add(p.site.trim());
+      }
+    }
+    final list = set.toList()..sort();
+    return ['All Sites', ...list];
+  }
 
   List<Person> get visiblePeople {
     final query = searchController.text.trim().toLowerCase();
@@ -36,9 +60,17 @@ class _UsersScreenState extends State<UsersScreen> {
       final statusMatches =
           statusFilter == 'All Statuses' ||
           (statusFilter == 'Active' ? person.isActive : !person.isActive);
+      final departmentMatches =
+          departmentFilter == 'All Departments' ||
+          person.department.toLowerCase() == departmentFilter.toLowerCase();
+      final siteMatches =
+          siteFilter == 'All Sites' ||
+          person.site.toLowerCase() == siteFilter.toLowerCase();
       return (query.isEmpty || searchable.contains(query)) &&
           typeMatches &&
-          statusMatches;
+          statusMatches &&
+          departmentMatches &&
+          siteMatches;
     }).toList();
   }
 
@@ -171,7 +203,7 @@ class _UsersScreenState extends State<UsersScreen> {
         runSpacing: 12,
         children: [
           SizedBox(
-            width: _width(constraints.maxWidth, 300),
+            width: _width(constraints.maxWidth, 260),
             child: TextField(
               controller: searchController,
               onChanged: (_) => setState(() {}),
@@ -181,16 +213,35 @@ class _UsersScreenState extends State<UsersScreen> {
               ),
             ),
           ),
-          _select('Person Type', typeFilter, [
-            'All Types',
-            'Internal',
-            'External',
-          ], (value) => setState(() => typeFilter = value!)),
-          _select('Status', statusFilter, [
-            'All Statuses',
-            'Active',
-            'Inactive',
-          ], (value) => setState(() => statusFilter = value!)),
+          _select(
+            'Person Type',
+            typeFilter,
+            ['All Types', 'Internal', 'External'],
+            (value) => setState(() => typeFilter = value ?? 'All Types'),
+            width: _width(constraints.maxWidth, 150),
+          ),
+          _select(
+            'Department',
+            departmentFilter,
+            availableDepartments,
+            (value) =>
+                setState(() => departmentFilter = value ?? 'All Departments'),
+            width: _width(constraints.maxWidth, 165),
+          ),
+          _select(
+            'Site',
+            siteFilter,
+            availableSites,
+            (value) => setState(() => siteFilter = value ?? 'All Sites'),
+            width: _width(constraints.maxWidth, 165),
+          ),
+          _select(
+            'Status',
+            statusFilter,
+            ['All Statuses', 'Active', 'Inactive'],
+            (value) => setState(() => statusFilter = value ?? 'All Statuses'),
+            width: _width(constraints.maxWidth, 140),
+          ),
         ],
       ),
     ),
@@ -332,12 +383,14 @@ class _UsersScreenState extends State<UsersScreen> {
     String label,
     String value,
     List<String> values,
-    ValueChanged<String?> onChanged,
-  ) => SizedBox(
-    width: 170,
+    ValueChanged<String?> onChanged, {
+    double width = 170,
+  }) => SizedBox(
+    width: width,
     child: DropdownButtonFormField<String>(
+      key: ValueKey('$label-$value'),
       isExpanded: true,
-      initialValue: value,
+      initialValue: values.contains(value) ? value : values.first,
       decoration: InputDecoration(labelText: label),
       items: values
           .map(
@@ -396,11 +449,15 @@ class _PersonDetails extends StatelessWidget {
       _detail(
         person.type == PersonType.internalUser
             ? 'Division / Department / Site'
-            : 'Company',
+            : 'Company / Organization',
         person.type == PersonType.internalUser
             ? '${person.division} / ${person.department} / ${person.site}'
             : person.company,
       ),
+      if (person.type == PersonType.externalWorker) ...[
+        if (person.site.isNotEmpty) _detail('Project / Site', person.site),
+        if (person.notes.isNotEmpty) _detail('Notes', person.notes),
+      ],
       const SizedBox(height: 8),
       FilledButton.icon(
         onPressed: onEdit,

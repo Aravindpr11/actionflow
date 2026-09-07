@@ -294,18 +294,9 @@ class _WorkerBrand extends StatelessWidget {
           child: const Icon(Icons.work_history_rounded, color: Colors.white),
         ),
         const SizedBox(width: 10),
-        const Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'ActionFlow',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            Text(
-              'HSSE Action Tracker',
-              style: TextStyle(color: Color(0xFF64748B), fontSize: 11),
-            ),
-          ],
+        const Text(
+          'ActionFlow',
+          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
       ],
     );

@@ -208,18 +208,9 @@ class _Sidebar extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ActionFlow',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                  Text(
-                    'HSSE Action Tracker',
-                    style: TextStyle(fontSize: 11, color: Color(0xFF64748B)),
-                  ),
-                ],
+              const Text(
+                'ActionFlow',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
             ],
           ),
@@ -319,18 +310,9 @@ class _TopHeader extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: 12),
-              const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'ActionFlow',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                  Text(
-                    'HSSE Action Tracker',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF64748B)),
-                  ),
-                ],
+              const Text(
+                'ActionFlow',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
               ),
             ],
           );

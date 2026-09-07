@@ -119,7 +119,48 @@ class MockPeopleStore {
     ),
   ];
 
-  void add(Person person) => people.insert(0, person);
+  static String normalizePhone(String phone) {
+    return phone.replaceAll(RegExp(r'\D'), '');
+  }
+
+  static bool isEmailMatch(String e1, String e2) {
+    final a = e1.trim().toLowerCase();
+    final b = e2.trim().toLowerCase();
+    return a.isNotEmpty && b.isNotEmpty && a == b;
+  }
+
+  static bool isPhoneMatch(String p1, String p2) {
+    final a = normalizePhone(p1);
+    final b = normalizePhone(p2);
+    if (a.isEmpty || b.isEmpty) return false;
+    if (a == b) return true;
+    if (a.length >= 10 && b.length >= 10 && (a.endsWith(b) || b.endsWith(a))) {
+      return true;
+    }
+    return false;
+  }
+
+  Person? findDuplicate({
+    required String email,
+    required String phone,
+    String? excludeId,
+  }) {
+    for (final person in people) {
+      if (excludeId != null && person.id == excludeId) continue;
+      if (isEmailMatch(person.email, email)) return person;
+      if (isPhoneMatch(person.phone, phone)) return person;
+    }
+    return null;
+  }
+
+  void add(Person person) {
+    final existingIndex = people.indexWhere((item) => item.id == person.id);
+    if (existingIndex >= 0) {
+      people[existingIndex] = person;
+    } else {
+      people.insert(0, person);
+    }
+  }
 
   void addWithTeamNotifications(Person person) {
     add(person);

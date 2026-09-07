@@ -34,6 +34,7 @@ class ActionRecord {
     this.managerMessage = '',
     this.primaryAssignee,
     this.additionalPeople = const [],
+    this.emailReminders = const [],
   });
 
   final String id;
@@ -68,6 +69,7 @@ class ActionRecord {
   final String managerMessage;
   final ActionPersonReference? primaryAssignee;
   final List<ActionPersonReference> additionalPeople;
+  final List<ActionEmailReminder> emailReminders;
 
   String get percent => '$percentComplete%';
   String get followUp =>
@@ -89,6 +91,7 @@ class ActionRecord {
     List<String>? attachments,
     ActionPersonReference? primaryAssignee,
     List<ActionPersonReference>? additionalPeople,
+    List<ActionEmailReminder>? emailReminders,
   }) {
     return ActionRecord(
       id: id,
@@ -123,6 +126,39 @@ class ActionRecord {
       managerMessage: managerMessage ?? this.managerMessage,
       primaryAssignee: primaryAssignee ?? this.primaryAssignee,
       additionalPeople: additionalPeople ?? this.additionalPeople,
+      emailReminders: emailReminders ?? this.emailReminders,
+    );
+  }
+}
+
+class ActionEmailReminder {
+  const ActionEmailReminder({
+    required this.id,
+    this.isEnabled = true,
+    this.date = '',
+    this.time = '09:00 AM',
+    this.recipients = const [],
+  });
+
+  final String id;
+  final bool isEnabled;
+  final String date;
+  final String time;
+  final List<ActionPersonReference> recipients;
+
+  ActionEmailReminder copyWith({
+    String? id,
+    bool? isEnabled,
+    String? date,
+    String? time,
+    List<ActionPersonReference>? recipients,
+  }) {
+    return ActionEmailReminder(
+      id: id ?? this.id,
+      isEnabled: isEnabled ?? this.isEnabled,
+      date: date ?? this.date,
+      time: time ?? this.time,
+      recipients: recipients ?? this.recipients,
     );
   }
 }
