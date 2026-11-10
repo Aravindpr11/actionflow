@@ -112,7 +112,7 @@ void main() {
     await tester.pumpWidget(const MaterialApp(home: UsersScreen()));
     await tester.pumpAndSettle();
 
-    expect(find.text('People / Workers Directory'), findsOneWidget);
+    expect(find.text('People / Staff Directory'), findsOneWidget);
     expect(find.text('Add Person'), findsWidgets);
     expect(find.text('All Departments'), findsOneWidget);
     expect(find.text('All Sites'), findsOneWidget);
@@ -235,7 +235,7 @@ void main() {
       await tester.pumpWidget(const MaterialApp(home: UsersScreen()));
       await tester.pumpAndSettle();
 
-      expect(find.text('People / Workers Directory'), findsOneWidget);
+      expect(find.text('People / Staff Directory'), findsOneWidget);
       expect(find.text('All Departments'), findsOneWidget);
       expect(find.text('All Sites'), findsOneWidget);
       expect(tester.takeException(), isNull);

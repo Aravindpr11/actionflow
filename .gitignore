@@ -46,3 +46,24 @@ app.*.map.json
 
 # Widget Preview related
 .widget_preview/
+
+# Environment & Secret files
+*.env
+*.env.*
+*.local
+captured_login_requests.json
+
+# Scratch & Temporary diagnostic files
+scratch/
+notification_repair_git_diff.md
+.actionflow_theme.json
+build.log
+flutter_*.log
+
+# Supabase local temp
+supabase/.temp/
+supabase/.branches/
+
+# Explicitly ensure Supabase migrations are tracked
+!supabase/migrations/
+!supabase/migrations/*.sql

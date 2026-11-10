@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/theme/app_theme.dart';
 import '../models/person.dart';
 
 class DuplicatePersonDialog extends StatelessWidget {
@@ -17,6 +18,7 @@ class DuplicatePersonDialog extends StatelessWidget {
     final isInternal = existingPerson.type == PersonType.internalUser;
 
     return Dialog(
+      backgroundColor: AppTheme.cardBg(context),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       elevation: 8,
       child: ConstrainedBox(
@@ -32,47 +34,51 @@ class DuplicatePersonDialog extends StatelessWidget {
                   horizontal: 20,
                   vertical: 16,
                 ),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFFBEB),
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  color: const Color(0xFFD97706).withValues(alpha: 0.12),
+                  borderRadius: const BorderRadius.only(
                     topLeft: Radius.circular(16),
                     topRight: Radius.circular(16),
                   ),
-                  border: Border(bottom: BorderSide(color: Color(0xFFFDE68A))),
+                  border: Border(
+                    bottom: BorderSide(
+                      color: const Color(0xFFD97706).withValues(alpha: 0.3),
+                    ),
+                  ),
                 ),
                 child: Row(
                   children: [
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFEF3C7),
+                        color: const Color(0xFFD97706).withValues(alpha: 0.2),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: const Icon(
                         Icons.warning_amber_rounded,
-                        color: Color(0xFFD97706),
+                        color: Color(0xFFF59E0B),
                         size: 24,
                       ),
                     ),
                     const SizedBox(width: 12),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
+                          const Text(
                             'Person already exists',
                             style: TextStyle(
                               fontSize: 16,
                               fontWeight: FontWeight.bold,
-                              color: Color(0xFF92400E),
+                              color: Color(0xFFF59E0B),
                             ),
                           ),
-                          SizedBox(height: 2),
+                          const SizedBox(height: 2),
                           Text(
                             'A record with this contact info was found in ActionFlow.',
                             style: TextStyle(
                               fontSize: 12,
-                              color: Color(0xFFB45309),
+                              color: AppTheme.textSecondary(context),
                             ),
                           ),
                         ],
@@ -91,9 +97,9 @@ class DuplicatePersonDialog extends StatelessWidget {
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFF8FAFC),
+                        color: AppTheme.containerBg(context),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: const Color(0xFFE2E8F0)),
+                        border: Border.all(color: AppTheme.cardBorder(context)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,18 +129,20 @@ class DuplicatePersonDialog extends StatelessWidget {
                                   children: [
                                     Text(
                                       existingPerson.name,
-                                      style: const TextStyle(
+                                      style: TextStyle(
                                         fontSize: 15,
                                         fontWeight: FontWeight.bold,
-                                        color: Color(0xFF0F172A),
+                                        color: AppTheme.textPrimary(context),
                                       ),
                                     ),
                                     if (existingPerson.designation.isNotEmpty)
                                       Text(
                                         existingPerson.designation,
-                                        style: const TextStyle(
+                                        style: TextStyle(
                                           fontSize: 12,
-                                          color: Color(0xFF64748B),
+                                          color: AppTheme.textSecondary(
+                                            context,
+                                          ),
                                         ),
                                       ),
                                   ],
@@ -147,8 +155,10 @@ class DuplicatePersonDialog extends StatelessWidget {
                                 ),
                                 decoration: BoxDecoration(
                                   color: isInternal
-                                      ? const Color(0xFFDBEAFE)
-                                      : const Color(0xFFE2E8F0),
+                                      ? const Color(0xFF1565C0)
+                                            .withValues(alpha: 0.15)
+                                      : const Color(0xFF7E57C2)
+                                            .withValues(alpha: 0.15),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
                                 child: Text(
@@ -157,21 +167,26 @@ class DuplicatePersonDialog extends StatelessWidget {
                                     fontSize: 11,
                                     fontWeight: FontWeight.bold,
                                     color: isInternal
-                                        ? const Color(0xFF1D4ED8)
-                                        : const Color(0xFF334155),
+                                        ? const Color(0xFF38BDF8)
+                                        : const Color(0xFFA78BFA),
                                   ),
                                 ),
                               ),
                             ],
                           ),
-                          const Divider(height: 20, color: Color(0xFFE2E8F0)),
+                          Divider(
+                            height: 20,
+                            color: AppTheme.cardBorder(context),
+                          ),
                           _detailRow(
+                            context,
                             Icons.email_outlined,
                             'Email',
                             existingPerson.email,
                           ),
                           const SizedBox(height: 6),
                           _detailRow(
+                            context,
                             Icons.phone_outlined,
                             'Phone',
                             existingPerson.phone,
@@ -180,6 +195,7 @@ class DuplicatePersonDialog extends StatelessWidget {
                               existingPerson.department.isNotEmpty) ...[
                             const SizedBox(height: 6),
                             _detailRow(
+                              context,
                               Icons.business_outlined,
                               'Department',
                               existingPerson.department,
@@ -189,6 +205,7 @@ class DuplicatePersonDialog extends StatelessWidget {
                               existingPerson.company.isNotEmpty) ...[
                             const SizedBox(height: 6),
                             _detailRow(
+                              context,
                               Icons.corporate_fare_outlined,
                               'Company',
                               existingPerson.company,
@@ -197,6 +214,7 @@ class DuplicatePersonDialog extends StatelessWidget {
                           if (existingPerson.site.isNotEmpty) ...[
                             const SizedBox(height: 6),
                             _detailRow(
+                              context,
                               Icons.location_on_outlined,
                               'Site',
                               existingPerson.site,
@@ -206,11 +224,11 @@ class DuplicatePersonDialog extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(height: 12),
-                    const Text(
+                    Text(
                       'Would you like to select and use this existing person instead of creating a duplicate?',
                       style: TextStyle(
                         fontSize: 12,
-                        color: Color(0xFF64748B),
+                        color: AppTheme.textSecondary(context),
                         height: 1.4,
                       ),
                     ),
@@ -224,13 +242,15 @@ class DuplicatePersonDialog extends StatelessWidget {
                   horizontal: 20,
                   vertical: 14,
                 ),
-                decoration: const BoxDecoration(
-                  color: Color(0xFFF8FAFC),
-                  borderRadius: BorderRadius.only(
+                decoration: BoxDecoration(
+                  color: AppTheme.containerBg(context),
+                  borderRadius: const BorderRadius.only(
                     bottomLeft: Radius.circular(16),
                     bottomRight: Radius.circular(16),
                   ),
-                  border: Border(top: BorderSide(color: Color(0xFFE2E8F0))),
+                  border: Border(
+                    top: BorderSide(color: AppTheme.cardBorder(context)),
+                  ),
                 ),
                 child: Wrap(
                   alignment: WrapAlignment.end,
@@ -240,8 +260,8 @@ class DuplicatePersonDialog extends StatelessWidget {
                     OutlinedButton(
                       onPressed: () => Navigator.of(context).pop(null),
                       style: OutlinedButton.styleFrom(
-                        foregroundColor: const Color(0xFF475569),
-                        side: const BorderSide(color: Color(0xFFCBD5E1)),
+                        foregroundColor: AppTheme.textPrimary(context),
+                        side: BorderSide(color: AppTheme.cardBorder(context)),
                       ),
                       child: const Text('Cancel / Edit'),
                     ),
@@ -267,24 +287,32 @@ class DuplicatePersonDialog extends StatelessWidget {
     );
   }
 
-  Widget _detailRow(IconData icon, String label, String value) {
+  Widget _detailRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) {
     if (value.isEmpty) return const SizedBox.shrink();
     return Row(
       children: [
-        Icon(icon, size: 14, color: const Color(0xFF64748B)),
+        Icon(icon, size: 14, color: AppTheme.textSecondary(context)),
         const SizedBox(width: 6),
         Text(
           '$label: ',
-          style: const TextStyle(
+          style: TextStyle(
             fontSize: 12,
             fontWeight: FontWeight.w600,
-            color: Color(0xFF475569),
+            color: AppTheme.textSecondary(context),
           ),
         ),
         Expanded(
           child: Text(
             value,
-            style: const TextStyle(fontSize: 12, color: Color(0xFF1E293B)),
+            style: TextStyle(
+              fontSize: 12,
+              color: AppTheme.textPrimary(context),
+            ),
             overflow: TextOverflow.ellipsis,
           ),
         ),

@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+import 'package:action_flow/services/app_file_picker_service.dart';
+import 'package:action_flow/features/dashboard/manager_dashboard/data/mock_action_store.dart';
 import 'package:action_flow/features/dashboard/manager_dashboard/models/action_record.dart';
+import 'package:action_flow/features/dashboard/manager_dashboard/models/external_recipient.dart';
 import 'package:action_flow/features/dashboard/manager_dashboard/screens/add_action_screen.dart';
 import 'package:action_flow/features/users/data/mock_people_store.dart';
 import 'package:action_flow/features/users/models/person.dart';
@@ -46,15 +50,10 @@ void main() {
       expect(find.text('DATES'), findsOneWidget);
       expect(find.text('EVIDENCE / ATTACHMENTS'), findsOneWidget);
 
-      // Verify Simultaneous Internal & External Panels
+      // Verify Segmented Assignment Panels
       expect(find.text('INTERNAL PERSON'), findsOneWidget);
-      expect(find.text('EXTERNAL PERSON / COMPANY'), findsOneWidget);
-
-      // Verify Buttons inside Assignment
       expect(find.text('Add Internal Person'), findsOneWidget);
       expect(find.text('Add New Internal Person'), findsOneWidget);
-      expect(find.text('Add External Person'), findsOneWidget);
-      expect(find.text('Add New External Person'), findsOneWidget);
 
       // Open "Add New Internal Person" Dialog
       await tester.tap(find.text('Add New Internal Person'));
@@ -69,21 +68,22 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Open "Add New External Person" Dialog
-      await tester.tap(find.text('Add New External Person'));
+      // Switch to External Assignment Panel via Segmented Toggle
+      await tester.tap(find.byKey(const Key('recipient_type_external')));
       await tester.pumpAndSettle();
 
-      expect(
-        find.descendant(
-          of: find.byType(Dialog),
-          matching: find.text('Add New External Person'),
-        ),
-        findsOneWidget,
-      );
+      expect(find.text('EXTERNAL USER / RECIPIENT'), findsOneWidget);
+      expect(find.text('+ Add Another External User'), findsOneWidget);
+
+      // Open "+ Add Another External User" Dialog
+      await tester.tap(find.text('+ Add Another External User'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Add Another External User'), findsOneWidget);
 
       // Close Dialog with Cancel
       await tester.tap(
-        find.descendant(of: find.byType(Dialog), matching: find.text('Cancel')),
+        find.descendant(of: find.byType(AlertDialog), matching: find.text('Cancel')),
       );
       await tester.pumpAndSettle();
 
@@ -154,7 +154,6 @@ void main() {
         phone: '+91 99999 22222',
         designation: 'Safety Engineer',
         department: 'HSE',
-        division: 'Operations',
         site: 'Site 1',
         type: PersonType.internalUser,
         isActive: true,
@@ -194,41 +193,58 @@ void main() {
   );
 
   testWidgets(
-    'AddActionScreen external person search by name/email/phone and auto-fills fields',
+    'AddActionScreen external person selection auto-fills fields',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 3000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
+        MockActionStore.instance.externalRecipients.clear();
       });
+
+      final kPatel = ExternalRecipient(
+        id: 'rec-patel-1',
+        organizationId: '00000000-0000-0000-0000-000000000001',
+        fullName: 'K. Patel',
+        email: 'k.patel@safecontractors.demo',
+        phone: '+91 90000 20001',
+        companyName: 'Safe Contractors Ltd',
+      );
+      MockActionStore.instance.externalRecipients.add(kPatel);
 
       await tester.pumpWidget(
         const MaterialApp(home: AddActionScreen(actionId: 'AC-101')),
       );
       await tester.pumpAndSettle();
 
-      final externalSearchField = find.widgetWithText(
-        TextFormField,
-        'Search by name, email, phone, or company...',
+      // Switch to External tab
+      await tester.tap(find.byKey(const Key('recipient_type_external')));
+      await tester.pumpAndSettle();
+
+      final dropdown = find.byType(DropdownButtonFormField<String?>);
+      expect(dropdown, findsOneWidget);
+
+      await tester.tap(dropdown);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.textContaining('K. Patel').last);
+      await tester.pumpAndSettle();
+
+      // External fields should be auto-filled
+      expect(find.widgetWithText(TextFormField, 'K. Patel'), findsOneWidget);
+      expect(
+        find.widgetWithText(TextFormField, 'k.patel@safecontractors.demo'),
+        findsOneWidget,
       );
-      expect(externalSearchField, findsOneWidget);
-
-      // Search for K. Patel by phone digits
-      await tester.enterText(externalSearchField, '20001');
-      await tester.pumpAndSettle();
-
-      // Suggestion tile should appear
-      expect(find.text('K. Patel'), findsOneWidget);
-      expect(find.text('Safe Contractors Ltd'), findsOneWidget);
-
-      // Select K. Patel
-      await tester.tap(find.text('K. Patel'));
-      await tester.pumpAndSettle();
-
-      // External fields should be auto-filled and Primary External Person card shown
-      expect(find.text('Primary External'), findsOneWidget);
-      expect(find.text('Safe Contractors Ltd'), findsWidgets);
+      expect(
+        find.widgetWithText(TextFormField, 'Safe Contractors Ltd'),
+        findsOneWidget,
+      );
+      expect(
+        find.widgetWithText(TextFormField, '+91 90000 20001'),
+        findsOneWidget,
+      );
     },
   );
 
@@ -279,52 +295,99 @@ void main() {
   );
 
   testWidgets(
-    'AddActionScreen Add New External Person dialog prevents duplicate email and allows reuse',
+    'AddActionScreen Add Another External User dialog prevents duplicate email and allows selecting existing recipient',
     (tester) async {
       tester.view.physicalSize = const Size(1200, 3000);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
+        MockActionStore.instance.externalRecipients.clear();
       });
+
+      final kPatel = ExternalRecipient(
+        id: 'rec-patel-1',
+        organizationId: '00000000-0000-0000-0000-000000000001',
+        fullName: 'K. Patel',
+        email: 'k.patel@safecontractors.demo',
+        phone: '+91 90000 20001',
+        companyName: 'Safe Contractors Ltd',
+      );
+      MockActionStore.instance.externalRecipients.add(kPatel);
 
       await tester.pumpWidget(
         const MaterialApp(home: AddActionScreen(actionId: 'AC-101')),
       );
       await tester.pumpAndSettle();
 
-      // Open Add New External Person dialog
-      await tester.tap(find.text('Add New External Person'));
+      // Switch to External tab
+      await tester.tap(find.byKey(const Key('recipient_type_external')));
       await tester.pumpAndSettle();
 
-      // Fill with existing external person's email and company
+      // Primary External
       await tester.enterText(
         find.widgetWithText(TextFormField, 'Full Name *'),
-        'K. Patel Duplicate',
+        'Contractor Alpha',
       );
       await tester.enterText(
-        find.widgetWithText(TextFormField, 'Email *'),
-        'k.patel@safecontractors.demo',
+        find.widgetWithText(TextFormField, 'Email Address *'),
+        'alpha@contractor.com',
       );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Company / Organization *'),
-        'Safe Contractors Ltd',
-      );
-
-      // Tap Save Person
-      await tester.tap(find.text('Save Person'));
       await tester.pumpAndSettle();
 
-      // Duplicate Dialog appears
-      expect(find.text('Person already exists'), findsOneWidget);
-      expect(find.text('Use Existing Person'), findsOneWidget);
-
-      // Tap Use Existing Person
-      await tester.tap(find.text('Use Existing Person'));
+      // Open Add Another External User dialog
+      final addAnotherBtn =
+          find.byKey(const Key('add_another_external_user_btn'));
+      await tester.tap(addAnotherBtn);
       await tester.pumpAndSettle();
 
-      // Verify External Primary selected K. Patel
+      expect(find.text('Add Another External User'), findsOneWidget);
+
+      // Select existing recipient (K. Patel) from dropdown
+      final dialogDropdown = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.byType(DropdownButtonFormField<String?>),
+      );
+      expect(dialogDropdown, findsOneWidget);
+      await tester.tap(dialogDropdown);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.textContaining('K. Patel').last);
+      await tester.pumpAndSettle();
+
+      // Tap Add External User
+      final submitBtn = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Add External User'),
+      );
+      await tester.tap(submitBtn);
+      await tester.pumpAndSettle();
+
+      // Verify K. Patel is added to Additional External Users
+      expect(find.text('Additional External Users (1)'), findsOneWidget);
       expect(find.text('K. Patel'), findsWidgets);
+
+      // Attempt to add duplicate recipient with same email
+      await tester.tap(addAnotherBtn);
+      await tester.pumpAndSettle();
+
+      final dialogName = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextFormField, 'Full Name *'),
+      );
+      final dialogEmail = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextFormField, 'Email Address *'),
+      );
+      await tester.enterText(dialogName, 'K. Patel Duplicate');
+      await tester.enterText(dialogEmail, 'k.patel@safecontractors.demo');
+      await tester.pumpAndSettle();
+
+      await tester.tap(submitBtn);
+      await tester.pumpAndSettle();
+
+      // Verify duplicate was prevented, count remains 1
+      expect(find.text('Additional External Users (1)'), findsOneWidget);
     },
   );
 
@@ -339,7 +402,7 @@ void main() {
       });
 
       final originalKumar = MockPeopleStore.instance.people.firstWhere(
-        (p) => p.id == 'AFU-001',
+        (p) => p.name == 'R. Kumar',
       );
       final originalDesignation = originalKumar.designation;
 
@@ -391,7 +454,7 @@ void main() {
 
       // Verify official MockPeopleStore record was NOT mutated
       final storeKumar = MockPeopleStore.instance.people.firstWhere(
-        (p) => p.id == 'AFU-001',
+        (p) => p.name == 'R. Kumar',
       );
       expect(storeKumar.designation, equals(originalDesignation));
     },
@@ -476,46 +539,82 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Search & select K. Patel as Primary External
-      final extSearch = find.widgetWithText(
-        TextFormField,
-        'Search by name, email, phone, or company...',
+      // Switch to External tab
+      await tester.tap(find.byKey(const Key('recipient_type_external')));
+      await tester.pumpAndSettle();
+
+      // Primary External
+      final nameField = find.widgetWithText(TextFormField, 'Full Name *');
+      final emailField = find.widgetWithText(TextFormField, 'Email Address *');
+      final phoneField = find.widgetWithText(TextFormField, 'Phone');
+      await tester.enterText(nameField, 'Contractor Alpha');
+      await tester.enterText(emailField, 'alpha@contractor.com');
+      await tester.enterText(phoneField, '+91 88888 77777');
+      await tester.pumpAndSettle();
+
+      expect(find.text('Contractor Alpha'), findsOneWidget);
+      expect(find.text('+91 88888 77777'), findsOneWidget);
+
+      // Add Additional External Person via dialog
+      final addAnotherBtn =
+          find.byKey(const Key('add_another_external_user_btn'));
+      await tester.tap(addAnotherBtn);
+      await tester.pumpAndSettle();
+
+      final dialogName = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextFormField, 'Full Name *'),
       );
-      await tester.enterText(extSearch, 'Patel');
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('K. Patel').first);
+      final dialogEmail = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextFormField, 'Email Address *'),
+      );
+      await tester.enterText(dialogName, 'Contractor Beta');
+      await tester.enterText(dialogEmail, 'beta@contractor.com');
       await tester.pumpAndSettle();
 
-      expect(find.text('Primary External'), findsOneWidget);
+      final dialogSubmit = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Add External User'),
+      );
+      await tester.tap(dialogSubmit);
+      await tester.pumpAndSettle();
 
-      // Edit Primary External Person
-      final editBtn = find.byTooltip('Edit External Person');
+      expect(find.text('Contractor Beta'), findsOneWidget);
+      expect(find.text('Additional External Users (1)'), findsOneWidget);
+
+      // Edit Additional External User
+      final editBtn = find.byTooltip('Edit External User');
       expect(editBtn, findsOneWidget);
       await tester.tap(editBtn);
       await tester.pumpAndSettle();
 
-      expect(find.text('Edit External Person'), findsOneWidget);
-      final phoneField = find.widgetWithText(TextFormField, 'Phone Number');
-      await tester.enterText(phoneField, '+91 88888 77777');
-      await tester.tap(find.text('Save Person'));
-      await tester.pumpAndSettle();
-
-      expect(find.textContaining('+91 88888 77777'), findsOneWidget);
-
-      // Remove Primary External
-      final removeButtons = find.byTooltip('Remove');
-      expect(removeButtons, findsWidgets);
-      await tester.tap(removeButtons.first);
-      await tester.pumpAndSettle();
-
-      expect(find.text('Primary External'), findsNothing);
-      expect(
-        find.widgetWithText(
-          TextFormField,
-          'Search by name, email, phone, or company...',
-        ),
-        findsOneWidget,
+      expect(find.text('Edit External User'), findsOneWidget);
+      final editNameField = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextFormField, 'Full Name *'),
       );
+      await tester.enterText(editNameField, 'Contractor Beta Updated');
+      await tester.pumpAndSettle();
+
+      final editSaveBtn = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Save Changes'),
+      );
+      await tester.tap(editSaveBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Contractor Beta Updated'), findsOneWidget);
+
+      // Remove Additional External User
+      final removeBtn = find.byTooltip('Remove');
+      expect(removeBtn, findsOneWidget);
+      await tester.tap(removeBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Contractor Beta Updated'), findsNothing);
+      expect(find.text('Additional External Users (1)'), findsNothing);
+      expect(find.text('Contractor Alpha'), findsOneWidget);
     },
   );
 
@@ -631,33 +730,48 @@ void main() {
       await tester.pumpAndSettle();
 
       // 3. Primary External: K. Patel
-      final extSearch = find.widgetWithText(
-        TextFormField,
-        'Search by name, email, phone, or company...',
-      );
-      await tester.enterText(extSearch, '20001');
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('K. Patel').first);
+      await tester.tap(find.byKey(const Key('recipient_type_external')));
       await tester.pumpAndSettle();
 
-      // 4. Additional External: John Smith via Add New External Person
-      final addExtBtn = find.text('Add New External Person');
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Full Name *'),
+        'K. Patel',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Email Address *'),
+        'k.patel@safecontractors.demo',
+      );
+      await tester.pumpAndSettle();
+
+      // 4. Additional External: John Smith via + Add Another External User
+      final addExtBtn =
+          find.byKey(const Key('add_another_external_user_btn'));
       await tester.ensureVisible(addExtBtn);
       await tester.tap(addExtBtn);
       await tester.pumpAndSettle();
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Full Name *'),
-        'John Smith',
+
+      final dialogName = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextFormField, 'Full Name *'),
       );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Email *'),
-        'john.rule1@contractor.com',
+      final dialogEmail = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextFormField, 'Email Address *'),
       );
-      await tester.enterText(
-        find.widgetWithText(TextFormField, 'Company / Organization *'),
-        'Contractor Corp',
+      final dialogCompany = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.widgetWithText(TextFormField, 'Company / Organization'),
       );
-      await tester.tap(find.text('Save Person'));
+      await tester.enterText(dialogName, 'John Smith');
+      await tester.enterText(dialogEmail, 'john.rule1@contractor.com');
+      await tester.enterText(dialogCompany, 'Contractor Corp');
+      await tester.pumpAndSettle();
+
+      final dialogSubmit = find.descendant(
+        of: find.byType(AlertDialog),
+        matching: find.text('Add External User'),
+      );
+      await tester.tap(dialogSubmit);
       await tester.pumpAndSettle();
 
       // Turn on Email Reminder
@@ -708,13 +822,17 @@ void main() {
       await tester.pumpAndSettle();
 
       // Assign Primary External: K. Patel
-      final extSearch = find.widgetWithText(
-        TextFormField,
-        'Search by name, email, phone, or company...',
-      );
-      await tester.enterText(extSearch, '20001');
+      await tester.tap(find.byKey(const Key('recipient_type_external')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('K. Patel').first);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Full Name *'),
+        'K. Patel',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Email Address *'),
+        'k.patel@safecontractors.demo',
+      );
       await tester.pumpAndSettle();
 
       // Turn ON Email Reminder
@@ -831,13 +949,18 @@ void main() {
       await tester.tap(find.text('Maintenance • North Plant').first);
       await tester.pumpAndSettle();
 
-      final extSearch = find.widgetWithText(
-        TextFormField,
-        'Search by name, email, phone, or company...',
-      );
-      await tester.enterText(extSearch, '20001');
+      // Switch to External tab and assign Primary External: K. Patel
+      await tester.tap(find.byKey(const Key('recipient_type_external')));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('K. Patel').first);
+
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Full Name *'),
+        'K. Patel',
+      );
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Email Address *'),
+        'k.patel@safecontractors.demo',
+      );
       await tester.pumpAndSettle();
 
       // Turn on Email Reminder & add Reminder 2
@@ -858,7 +981,10 @@ void main() {
       await tester.tap(allCheckboxes.at(2));
       await tester.pumpAndSettle();
 
-      // Remove R. Kumar from Assignment
+      // Switch back to Internal tab to remove R. Kumar from Assignment
+      await tester.tap(find.byKey(const Key('recipient_type_internal')));
+      await tester.pumpAndSettle();
+
       final removeButtons = find.byTooltip('Remove');
       expect(removeButtons, findsWidgets);
       await tester.tap(removeButtons.first);
@@ -892,7 +1018,10 @@ void main() {
       );
 
       // Pick Target Date
-      final targetDatePicker = find.text('Target Date *');
+      final targetDatePicker = find.widgetWithText(
+        InkWell,
+        'Target / Due Date *',
+      );
       await tester.ensureVisible(targetDatePicker);
       await tester.tap(targetDatePicker);
       await tester.pumpAndSettle();
@@ -909,10 +1038,10 @@ void main() {
       await tester.tap(find.text('Maintenance • North Plant').first);
       await tester.pumpAndSettle();
 
-      // Pick Close Date
-      final closeDatePicker = find.text('Close Date');
-      await tester.ensureVisible(closeDatePicker);
-      await tester.tap(closeDatePicker);
+      // Pick Follow-Up Date
+      final followUpDatePicker = find.widgetWithText(InkWell, 'Follow-Up Date');
+      await tester.ensureVisible(followUpDatePicker);
+      await tester.tap(followUpDatePicker);
       await tester.pumpAndSettle();
       await tester.tap(find.text('OK'));
       await tester.pumpAndSettle();
@@ -981,7 +1110,7 @@ void main() {
       );
 
       // Pick Target Date
-      final targetDateBtn = find.text('Target Date *');
+      final targetDateBtn = find.widgetWithText(InkWell, 'Target / Due Date *');
       await tester.ensureVisible(targetDateBtn);
       await tester.tap(targetDateBtn);
       await tester.pumpAndSettle();
@@ -1068,6 +1197,167 @@ void main() {
 
       // Verify no RenderFlex overflow
       expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'AddActionScreen header back button has proper key, tooltip, contrast, and handles onClose',
+    (tester) async {
+      bool closedCalled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          theme: ThemeData.light(),
+          darkTheme: ThemeData.dark(),
+          home: AddActionScreen(
+            actionId: 'AC-101',
+            onClose: () => closedCalled = true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final backBtnFinder = find.byKey(const Key('add_action_back_button'));
+      expect(backBtnFinder, findsOneWidget);
+
+      final iconBtn = tester.widget<IconButton>(backBtnFinder);
+      expect(iconBtn.tooltip, equals('Back'));
+
+      final iconWidget = tester.widget<Icon>(find.descendant(
+        of: backBtnFinder,
+        matching: find.byType(Icon),
+      ));
+      expect(iconWidget.color, isNotNull);
+      expect(iconWidget.color, isNot(equals(Colors.white)));
+
+      await tester.tap(backBtnFinder);
+      await tester.pumpAndSettle();
+
+      expect(closedCalled, isTrue);
+    },
+  );
+
+  testWidgets(
+    'Closed action immutability: Saving changes on a closed action displays security compliance warning and blocks modification',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final closedAction = ActionRecord(
+        id: 'AC-CLOSED-01',
+        subject: 'Closed Action for Immutability Test',
+        actionRequired: 'Verify closed action immutability.',
+        division: 'Operations',
+        status: 'Closed',
+        priority: 'High',
+        percentComplete: 100,
+        closeDate: '01 Jan 2026',
+        assignedTo: 'Suresh Engineer',
+        assignedToId: '00000000-0000-0000-0000-000000000001',
+      );
+
+      bool saveCalled = false;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: AddActionScreen(
+            actionId: closedAction.id,
+            existingAction: closedAction,
+            onSaved: (_) => saveCalled = true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      final saveBtn = find.text('SAVE CHANGES');
+      expect(saveBtn, findsOneWidget);
+      await tester.tap(saveBtn);
+      await tester.pumpAndSettle();
+
+      expect(
+        find.textContaining('Closed actions are locked for audit compliance'),
+        findsOneWidget,
+      );
+      expect(saveCalled, isFalse);
+    },
+  );
+
+  testWidgets(
+    'Attachment upload lifecycle: Rejects file exceeding 10 MB limit with clear SnackBar message',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        AppFilePicker.testOverride = null;
+      });
+
+      // Inject a mock file of 11 MB (> 10 MB)
+      AppFilePicker.testOverride = ({required allowedExtensions}) async {
+        return AppPickedFile(
+          name: 'Heavy_Scan.pdf',
+          bytes: Uint8List(0),
+          size: 11 * 1024 * 1024,
+        );
+      };
+
+      await tester.pumpWidget(
+        const MaterialApp(home: AddActionScreen(actionId: 'AC-101')),
+      );
+      await tester.pumpAndSettle();
+
+      final uploadBox = find.byKey(const Key('add_action_upload_evidence_box'));
+      expect(uploadBox, findsOneWidget);
+      await tester.ensureVisible(uploadBox);
+      await tester.tap(uploadBox);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('File size exceeds 10 MB limit'), findsOneWidget);
+      expect(find.text('Heavy_Scan.pdf'), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'Attachment upload lifecycle: Valid file adds to list with formatted size and can be removed',
+    (tester) async {
+      tester.view.physicalSize = const Size(1200, 3000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+        AppFilePicker.testOverride = null;
+      });
+
+      // Inject a valid 2.5 MB file
+      AppFilePicker.testOverride = ({required allowedExtensions}) async {
+        return AppPickedFile(
+          name: 'Safety_Audit.pdf',
+          bytes: Uint8List(100),
+          size: (2.5 * 1024 * 1024).round(),
+        );
+      };
+
+      await tester.pumpWidget(
+        const MaterialApp(home: AddActionScreen(actionId: 'AC-101')),
+      );
+      await tester.pumpAndSettle();
+
+      final uploadBox = find.byKey(const Key('add_action_upload_evidence_box'));
+      await tester.ensureVisible(uploadBox);
+      await tester.tap(uploadBox);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Safety_Audit.pdf • 2.5 MB'), findsOneWidget);
+
+      final removeBtn = find.byKey(const Key('remove_attachment_0_btn'));
+      expect(removeBtn, findsOneWidget);
+      await tester.tap(removeBtn);
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('Safety_Audit.pdf'), findsNothing);
     },
   );
 }

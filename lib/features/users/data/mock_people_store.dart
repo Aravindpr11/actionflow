@@ -18,13 +18,25 @@ class MockPeopleStore {
 
   final List<Person> people = [
     Person(
-      id: 'AFU-001',
+      id: 'a1000000-0000-0000-0000-000000000000',
+      name: 'System Administrator',
+      email: 'admin@actionflow.demo',
+      phone: '+91 90000 10000',
+      designation: 'System Administrator',
+      department: 'Enterprise System Administration',
+      site: 'Corporate HQ',
+      type: PersonType.internalUser,
+      isActive: true,
+      role: UserRole.admin,
+    ),
+    Person(
+      id: 'a1000000-0000-0000-0000-000000000001',
       name: 'R. Kumar',
       email: 'r.kumar@actionflow.demo',
       phone: '+91 90000 10001',
       designation: 'Maintenance Supervisor',
       department: 'Maintenance',
-      division: 'Operations',
+      departmentId: 'dept-maint-001',
       site: 'North Plant',
       type: PersonType.internalUser,
       isActive: true,
@@ -32,27 +44,47 @@ class MockPeopleStore {
       teamIds: ['TEAM-HSE', 'TEAM-OPS'],
     ),
     Person(
-      id: 'AFU-002',
+      id: 'a1000000-0000-0000-0000-000000000002',
       name: 'M. Ali',
       email: 'm.ali@actionflow.demo',
       phone: '+91 90000 10002',
       designation: 'HSE Coordinator',
       department: 'HSE',
-      division: 'Operations',
+      departmentId: 'dept-hse-001',
       site: 'Warehouse B',
       type: PersonType.internalUser,
       isActive: true,
       role: UserRole.departmentManager,
       teamIds: ['TEAM-HSE', 'TEAM-ACC'],
+      managerScopes: const [
+        ManagerScopeItem(
+          departmentId: 'dept-hse-001',
+          departmentName: 'HSE',
+          siteId: 'site-whb-001',
+          siteName: 'Warehouse B',
+        ),
+        ManagerScopeItem(
+          departmentId: 'dept-ops-001',
+          departmentName: 'Operations',
+          siteId: 'site-np-001',
+          siteName: 'North Plant',
+        ),
+        ManagerScopeItem(
+          departmentId: 'dept-maint-001',
+          departmentName: 'Maintenance',
+          siteId: 'site-np-001',
+          siteName: 'North Plant',
+        ),
+      ],
     ),
     Person(
-      id: 'AFU-003',
+      id: 'a1000000-0000-0000-0000-000000000003',
       name: 'S. Jones',
       email: 's.jones@actionflow.demo',
       phone: '+44 7000 10003',
       designation: 'Project Engineer',
       department: 'Projects',
-      division: 'Projects',
+      departmentId: 'dept-proj-001',
       site: 'Central Yard',
       type: PersonType.internalUser,
       isActive: true,
@@ -60,27 +92,68 @@ class MockPeopleStore {
       teamIds: ['TEAM-OPS'],
     ),
     Person(
-      id: 'AFU-004',
+      id: 'a1000000-0000-0000-0000-000000000004',
       name: 'N. Shah',
       email: 'n.shah@actionflow.demo',
       phone: '+91 90000 10004',
       designation: 'Facilities Lead',
       department: 'Operations',
-      division: 'Corporate',
+      departmentId: 'dept-ops-001',
       site: 'Admin Block',
       type: PersonType.internalUser,
       isActive: true,
       role: UserRole.departmentManager,
       teamIds: ['TEAM-OPS'],
+      managerScopes: const [
+        ManagerScopeItem(
+          departmentId: 'dept-ops-001',
+          departmentName: 'Operations',
+          siteId: 'site-adm-001',
+          siteName: 'Admin Block',
+        ),
+        ManagerScopeItem(
+          departmentId: 'dept-maint-001',
+          departmentName: 'Maintenance',
+          siteId: 'site-np-001',
+          siteName: 'North Plant',
+        ),
+      ],
     ),
     Person(
-      id: 'AFU-005',
+      id: 'a1000000-0000-0000-0000-000000000006',
+      name: 'Operations Manager',
+      email: 'manager@actionflow.demo',
+      phone: '+91 90000 10006',
+      designation: 'Operations Manager',
+      department: 'Operations',
+      departmentId: 'dept-ops-001',
+      site: 'North Plant',
+      type: PersonType.internalUser,
+      isActive: true,
+      role: UserRole.departmentManager,
+      managerScopes: const [
+        ManagerScopeItem(
+          departmentId: 'dept-ops-001',
+          departmentName: 'Operations',
+          siteId: 'site-np-001',
+          siteName: 'North Plant',
+        ),
+        ManagerScopeItem(
+          departmentId: 'dept-maint-001',
+          departmentName: 'Maintenance',
+          siteId: 'site-np-001',
+          siteName: 'North Plant',
+        ),
+      ],
+    ),
+    Person(
+      id: 'a1000000-0000-0000-0000-000000000005',
       name: 'T. Reed',
       email: 't.reed@actionflow.demo',
       phone: '+44 7000 10005',
       designation: 'Compliance Officer',
       department: 'HSE',
-      division: 'Operations',
+      departmentId: 'dept-hse-001',
       site: 'Storage Area',
       type: PersonType.internalUser,
       isActive: false,
@@ -88,7 +161,7 @@ class MockPeopleStore {
       teamIds: ['TEAM-HSE'],
     ),
     Person(
-      id: 'EXT-021',
+      id: 'b1000000-0000-0000-0000-000000000021',
       name: 'K. Patel',
       email: 'k.patel@safecontractors.demo',
       phone: '+91 90000 20001',
@@ -98,7 +171,7 @@ class MockPeopleStore {
       isActive: true,
     ),
     Person(
-      id: 'EXT-022',
+      id: 'b1000000-0000-0000-0000-000000000022',
       name: 'A. Williams',
       email: 'a.williams@liftcare.demo',
       phone: '+44 7000 20002',
@@ -108,7 +181,7 @@ class MockPeopleStore {
       isActive: true,
     ),
     Person(
-      id: 'EXT-023',
+      id: 'b1000000-0000-0000-0000-000000000023',
       name: 'D. Green',
       email: 'd.green@siteworks.demo',
       phone: '+44 7000 20003',
@@ -162,6 +235,10 @@ class MockPeopleStore {
     }
   }
 
+  void removePerson(String id) {
+    people.removeWhere((item) => item.id == id);
+  }
+
   void addWithTeamNotifications(Person person) {
     add(person);
     for (final teamId in person.teamIds) {
@@ -185,6 +262,10 @@ class MockPeopleStore {
         );
       }
     }
+  }
+
+  void addNotification(TeamNotification notification) {
+    notifications.insert(0, notification);
   }
 
   void update(Person person) {

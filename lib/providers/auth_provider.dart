@@ -1,43 +1,41 @@
-import 'package:flutter/material.dart';
-import 'package:action_flow/models/user.dart';
+import 'package:action_flow/features/profile/models/user_profile_model.dart';
 import 'package:action_flow/services/auth_service.dart';
+import 'package:flutter/material.dart';
 
 /// Auth provider for managing authentication state
-/// This can be extended with a state management solution (Riverpod, BLoC, etc.)
 class AuthProvider extends ChangeNotifier {
-  final AuthService _authService = AuthService();
+  final AuthService _authService = AuthService.instance;
 
-  User? _currentUser;
   bool _isLoading = false;
   String? _errorMessage;
 
-  User? get currentUser => _currentUser;
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
-  bool get isAuthenticated => _currentUser != null;
+  bool get isAuthenticated => _authService.isAuthenticated;
+  UserProfile? get currentProfile => _authService.currentProfile;
+  AuthProfileData? get currentProfileData => _authService.currentProfileData;
 
-  // TODO: Implement authentication state management
-  // This will include:
-  // - Login logic with state updates
-  // - Logout logic
-  // - Token refresh
-  // - Persist user session
-
-  Future<void> login(String email, String password) async {
+  Future<bool> login(String email, String password) async {
     _isLoading = true;
     _errorMessage = null;
     notifyListeners();
 
     try {
-      final success = await _authService.login(email, password);
-      if (success) {
-        // TODO: Fetch and set current user
+      final result = await _authService.signIn(
+        email: email,
+        password: password,
+      );
+      if (result.isSuccess) {
+        _errorMessage = null;
         notifyListeners();
+        return true;
       } else {
-        _errorMessage = 'Login failed';
+        _errorMessage = result.errorMessage ?? 'Invalid username or password';
+        return false;
       }
     } catch (e) {
-      _errorMessage = 'An error occurred: $e';
+      _errorMessage = 'Invalid username or password';
+      return false;
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -50,10 +48,9 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
 
     try {
-      await _authService.logout();
-      _currentUser = null;
+      await _authService.signOut();
     } catch (e) {
-      _errorMessage = 'Logout failed: $e';
+      _errorMessage = 'Logout failed';
     } finally {
       _isLoading = false;
       notifyListeners();

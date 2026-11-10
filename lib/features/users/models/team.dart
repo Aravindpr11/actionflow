@@ -6,12 +6,19 @@ class Team {
   final String department;
 }
 
-enum UserRole { departmentManager, actionOwnerWorker }
+enum UserRole { admin, departmentManager, actionOwnerWorker }
 
 extension UserRoleLabel on UserRole {
-  String get label => this == UserRole.departmentManager
-      ? 'Department Manager'
-      : 'Action Owner / Worker';
+  String get label {
+    switch (this) {
+      case UserRole.admin:
+        return 'System Administrator';
+      case UserRole.departmentManager:
+        return 'Department Manager';
+      case UserRole.actionOwnerWorker:
+        return 'Action Owner / Staff';
+    }
+  }
 }
 
 class TeamNotification {
