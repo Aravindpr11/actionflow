@@ -661,9 +661,9 @@ class DocumentService {
 
     final client = _client;
     final currentAuthUid = client?.auth.currentUser?.id;
-    final effectiveUserId = _isValidUuid(userId)
-        ? userId
-        : (currentAuthUid != null && _isValidUuid(currentAuthUid) ? currentAuthUid : null);
+    final effectiveUserId = (currentAuthUid != null && _isValidUuid(currentAuthUid))
+        ? currentAuthUid
+        : (_isValidUuid(userId) ? userId : null);
 
     // Resolve departmentId:
     // 1. If explicit valid UUID was passed (e.g. from linked action), use it.
@@ -815,6 +815,8 @@ class DocumentService {
     String? actionId,
     String? actionNumber,
     String? departmentId,
+    String? currentUserId,
+    String? userRole,
   }) async {
     final cleanTitle = title.trim();
     if (cleanTitle.isEmpty) {
@@ -867,6 +869,27 @@ class DocumentService {
     }
 
     final existing = MockDocumentStore.instance.documents[idx];
+
+    // Authorization check matching documents_org_update RLS and enforce_document_immutability:
+    // Anonymous or unauthenticated callers are strictly prohibited
+    if (currentUserId == null || currentUserId.trim().isEmpty) {
+      throw StateError('Authentication required. Anonymous or unauthenticated document updates are strictly prohibited.');
+    }
+
+    final isOwner = existing.createdBy == currentUserId;
+    final isEditRecipient = MockDocumentStore.instance.shares.any(
+      (s) => s.documentId == documentId && s.userId == currentUserId && s.permission == 'edit',
+    );
+    final isAdmin = userRole != null &&
+        (userRole.toLowerCase() == 'admin' ||
+         userRole.toLowerCase() == 'company_admin' ||
+         userRole.toLowerCase() == 'platform_admin' ||
+         userRole.toLowerCase() == 'service_role');
+
+    if (!isOwner && !isEditRecipient && !isAdmin) {
+      throw StateError('User does not have permission to edit this document.');
+    }
+
     final updated = existing.copyWith(
       title: cleanTitle,
       description: description.trim(),

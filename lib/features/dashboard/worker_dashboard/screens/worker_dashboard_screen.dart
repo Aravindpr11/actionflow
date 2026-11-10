@@ -5086,17 +5086,10 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
 
     final allDocs = _workerDocuments ?? MockDocumentStore.instance.documents;
     final myUploads = allDocs
-        .where((d) =>
-            d.isOwnedBy(_staffProfile.id) ||
-            (d.createdByName.isNotEmpty &&
-                d.createdByName.toLowerCase() == _staffProfile.name.toLowerCase()))
+        .where((d) => d.isOwnedBy(_staffProfile.id))
         .toList();
     final sharedWithMe = allDocs
-        .where((d) =>
-            d.isSharedWith(_staffProfile.id) ||
-            (!d.isOwnedBy(_staffProfile.id) &&
-                d.createdByName.toLowerCase() != _staffProfile.name.toLowerCase() &&
-                d.totalSharedCount > 0))
+        .where((d) => d.isSharedWith(_staffProfile.id))
         .toList();
     final guidelines = allDocs
         .where((d) =>
@@ -5177,12 +5170,8 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
           else
             Column(
               children: filteredDocs.map((doc) {
-                final isOwner = doc.isOwnedBy(_staffProfile.id) ||
-                    (doc.createdByName.isNotEmpty &&
-                        doc.createdByName.toLowerCase() ==
-                            _staffProfile.name.toLowerCase());
-                final isShared = doc.isSharedWith(_staffProfile.id) ||
-                    (!isOwner && doc.totalSharedCount > 0);
+                final isOwner = doc.isOwnedBy(_staffProfile.id);
+                final isShared = doc.isSharedWith(_staffProfile.id);
 
                 final IconData iconData;
                 if (doc.isPdf) {
