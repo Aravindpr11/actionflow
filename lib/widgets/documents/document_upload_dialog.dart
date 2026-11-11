@@ -73,6 +73,7 @@ class _DocumentUploadDialogState extends State<DocumentUploadDialog> {
   bool _isSubmitting = false;
   bool _isPickingFile = false;
   String? _validationMsg;
+  String? _uploadError;
   Uint8List? _selectedFileBytes;
   String? _selectedFileName;
   int? _selectedFileSize;
@@ -167,13 +168,14 @@ class _DocumentUploadDialogState extends State<DocumentUploadDialog> {
       _selectedFileName = null;
       _selectedFileSize = null;
       _validationMsg = null;
+      _uploadError = null;
     });
   }
 
   Future<void> _handleSubmit() async {
     if (_selectedFileBytes == null ||
         _selectedFileName == null ||
-        _titleCtrl.text.trim().isEmpty ||
+        _titleCtrl.text.trim().isNotEmpty != true ||
         _isSubmitting) {
       return;
     }
@@ -185,7 +187,7 @@ class _DocumentUploadDialogState extends State<DocumentUploadDialog> {
 
     setState(() {
       _isSubmitting = true;
-      _validationMsg = null;
+      _uploadError = null;
     });
 
     try {
@@ -233,7 +235,7 @@ class _DocumentUploadDialogState extends State<DocumentUploadDialog> {
       if (mounted) {
         setState(() {
           _isSubmitting = false;
-          _validationMsg = DocumentService.formatDownloadError(e);
+          _uploadError = DocumentService.formatUploadError(e);
         });
       }
     }
@@ -241,6 +243,7 @@ class _DocumentUploadDialogState extends State<DocumentUploadDialog> {
 
   @override
   Widget build(BuildContext context) {
+    final displayError = _validationMsg ?? _uploadError;
     final canSubmit = _selectedFileBytes != null &&
         _selectedFileBytes!.isNotEmpty &&
         _titleCtrl.text.trim().isNotEmpty &&
@@ -560,8 +563,8 @@ class _DocumentUploadDialogState extends State<DocumentUploadDialog> {
                   ),
                 ),
 
-                // Validation Message
-                if (_validationMsg != null) ...[
+                // Validation / Submission Error Message
+                if (displayError != null) ...[
                   const SizedBox(height: 12),
                   Container(
                     key: const Key('documents_validation_error'),
@@ -583,7 +586,7 @@ class _DocumentUploadDialogState extends State<DocumentUploadDialog> {
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            _validationMsg!,
+                            displayError,
                             style: TextStyle(
                               color: Colors.red.shade700,
                               fontSize: 12,

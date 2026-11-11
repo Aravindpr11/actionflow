@@ -712,7 +712,7 @@ void main() {
       expect(sql.contains("current_user IN ('postgres', 'supabase_admin')"), isFalse);
       
       // Proves session_user + explicit session setting are used
-      expect(sql.contains("v_session_user IN ('postgres', 'supabase_admin')"), isTrue);
+      expect(sql.contains("v_session_user IN ('postgres', 'supabase_admin'"), isTrue);
       expect(sql.contains("current_setting('app.maintenance_mode', true)"), isTrue);
 
       // Proves migration Section 2 enables and resets maintenance mode

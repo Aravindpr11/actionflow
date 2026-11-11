@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../../core/config/supabase_config.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../widgets/document_preview/request_attachment_preview_dialog.dart';
 import '../models/request_models.dart';
 import '../services/request_service.dart';
 import '../widgets/forward_request_dialog.dart';
@@ -453,20 +455,259 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
     }
   }
 
+  bool get _isRequester {
+    final req = _request;
+    if (req == null) return false;
+    final authUid = SupabaseConfig.clientOrNull?.auth.currentUser?.id;
+    return req.createdBy == widget.currentUserId ||
+        (authUid != null && req.createdBy == authUid);
+  }
+
+  void _handlePreviewAttachment(RequestAttachmentRecord att) {
+    RequestAttachmentPreviewDialog.show(context, attachment: att);
+  }
+
   Future<void> _handleDownloadAttachment(RequestAttachmentRecord att) async {
     try {
-      final url = await RequestService.instance.getAttachmentDownloadUrl(att.filePath);
-      _copyToClipboard(url, 'Secure Attachment URL');
-    } catch (e) {
-      if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Downloading "${att.fileName}"...'),
+          duration: const Duration(seconds: 1),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+
+      final saved = await RequestService.instance.downloadAttachment(
+        attachment: att,
+      );
+
+      if (mounted && saved) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Failed to obtain download URL: $e'),
-            backgroundColor: const Color(0xFFDC2626),
+            content: Text('Downloaded "${att.fileName}" successfully.'),
+            backgroundColor: const Color(0xFF16A34A),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
+    } catch (e) {
+      if (mounted) {
+        // Fallback: copy signed URL to clipboard if file saving encounters restriction
+        try {
+          final url = await RequestService.instance.getAttachmentDownloadUrl(att.filePath);
+          _copyToClipboard(url, 'Secure Attachment URL');
+        } catch (_) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Failed to download attachment: $e'),
+              backgroundColor: const Color(0xFFDC2626),
+              behavior: SnackBarBehavior.floating,
+            ),
+          );
+        }
+      }
     }
+  }
+
+  Future<void> _showResubmitDialog(RequestRecord req) async {
+    final responseCtrl = TextEditingController();
+    final notesCtrl = TextEditingController(text: req.additionalNotes);
+    bool isSubmitting = false;
+
+    await showDialog(
+      context: context,
+      barrierDismissible: !isSubmitting,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            backgroundColor: AppTheme.cardBg(ctx),
+            title: Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(
+                    Icons.replay_rounded,
+                    color: Color(0xFFDC2626),
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Respond & Resubmit Request',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary(ctx),
+                        ),
+                      ),
+                      Text(
+                        req.displayId,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary(ctx),
+                          fontFamily: 'monospace',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 520),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Approver's Rejection Feedback Box
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFDC2626).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: const Color(0xFFDC2626).withValues(alpha: 0.3)),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Row(
+                            children: [
+                              Icon(Icons.feedback_outlined, size: 16, color: Color(0xFFDC2626)),
+                              SizedBox(width: 6),
+                              Text(
+                                'Rejection Feedback',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12.5,
+                                  color: Color(0xFFDC2626),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Text(
+                            req.rejectionReason ?? 'No reason provided by approver.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: AppTheme.textPrimary(ctx),
+                              height: 1.35,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+
+                    // Response TextField
+                    TextField(
+                      controller: responseCtrl,
+                      maxLines: 3,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        labelText: 'Your Response / Adjustments *',
+                        hintText: 'Describe how you addressed the approver\'s feedback...',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+
+                    // Additional Notes TextField
+                    TextField(
+                      controller: notesCtrl,
+                      maxLines: 2,
+                      decoration: InputDecoration(
+                        labelText: 'Updated Additional Notes (Optional)',
+                        hintText: 'Any extra details or context...',
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: isSubmitting ? null : () => Navigator.pop(ctx),
+                child: const Text('Cancel'),
+              ),
+              FilledButton.icon(
+                style: FilledButton.styleFrom(
+                  backgroundColor: const Color(0xFF1565C0),
+                ),
+                icon: isSubmitting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.send_rounded, size: 16),
+                label: Text(isSubmitting ? 'Resubmitting...' : 'Resubmit Request'),
+                onPressed: isSubmitting
+                    ? null
+                    : () async {
+                        final comment = responseCtrl.text.trim();
+                        if (comment.isEmpty) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(
+                            const SnackBar(
+                              content: Text('Please enter a response explaining the adjustments made.'),
+                              backgroundColor: Color(0xFFDC2626),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
+
+                        setDialogState(() => isSubmitting = true);
+                        try {
+                          await RequestService.instance.resubmitRequest(
+                            requestId: req.id,
+                            currentUserId: widget.currentUserId,
+                            currentUserName: widget.currentUserName,
+                            currentUserRole: widget.currentUserRole,
+                            comments: comment,
+                            additionalNotes: notesCtrl.text.trim(),
+                          );
+                          if (ctx.mounted) Navigator.pop(ctx);
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Request resubmitted successfully for review.'),
+                                backgroundColor: Color(0xFF16A34A),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                            _loadDetails();
+                          }
+                        } catch (err) {
+                          if (ctx.mounted) {
+                            setDialogState(() => isSubmitting = false);
+                            ScaffoldMessenger.of(ctx).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to resubmit request: $err'),
+                                backgroundColor: const Color(0xFFDC2626),
+                                behavior: SnackBarBehavior.floating,
+                              ),
+                            );
+                          }
+                        }
+                      },
+              ),
+            ],
+          );
+        },
+      ),
+    );
   }
 
   @override
@@ -637,6 +878,20 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
           tooltip: 'Forward Request',
           onPressed: _openForwardDialog,
         ),
+        if (req.isRejected && _isRequester) ...[
+          ElevatedButton.icon(
+            onPressed: () => _showResubmitDialog(req),
+            icon: const Icon(Icons.replay_rounded, size: 16),
+            label: const Text('Resubmit'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              visualDensity: VisualDensity.compact,
+            ),
+          ),
+          const SizedBox(width: 8),
+        ],
         if (canIApprove) ...[
           OutlinedButton.icon(
             onPressed: _handleReject,
@@ -822,6 +1077,19 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
                     req.rejectionReason ?? 'No reason provided.',
                     style: const TextStyle(fontSize: 13, height: 1.4),
                   ),
+                  if (_isRequester) ...[
+                    const SizedBox(height: 12),
+                    FilledButton.icon(
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFFDC2626),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      icon: const Icon(Icons.replay_rounded, size: 16),
+                      label: const Text('Respond & Resubmit Request'),
+                      onPressed: () => _showResubmitDialog(req),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -1060,57 +1328,70 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
               separatorBuilder: (_, __) => const SizedBox(height: 8),
               itemBuilder: (context, index) {
                 final att = req.attachments[index];
-                return Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.cardBorder(context)),
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: AppTheme.primaryColor.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(6),
+                return InkWell(
+                  onTap: () => _handlePreviewAttachment(att),
+                  borderRadius: BorderRadius.circular(8),
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: isDark ? const Color(0xFF1E293B) : const Color(0xFFF8FAFC),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppTheme.cardBorder(context)),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.primaryColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Icon(
+                            att.isPdf
+                                ? Icons.picture_as_pdf_outlined
+                                : (att.isImage
+                                    ? Icons.image_outlined
+                                    : Icons.insert_drive_file_outlined),
+                            size: 20,
+                            color: AppTheme.primaryColor,
+                          ),
                         ),
-                        child: const Icon(
-                          Icons.insert_drive_file_outlined,
-                          size: 20,
-                          color: AppTheme.primaryColor,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              att.fileName,
-                              style: const TextStyle(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                att.fileName,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${att.formattedSize} • ${att.contentType.isNotEmpty ? att.contentType : 'Attachment'}',
-                              style: TextStyle(
-                                fontSize: 11,
-                                color: AppTheme.textSecondary(context),
+                              const SizedBox(height: 2),
+                              Text(
+                                '${att.formattedSize} • ${att.contentType.isNotEmpty ? att.contentType : 'Attachment'}',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: AppTheme.textSecondary(context),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.download_rounded, size: 20),
-                        tooltip: 'Copy Signed Download Link',
-                        onPressed: () => _handleDownloadAttachment(att),
-                      ),
-                    ],
+                        IconButton(
+                          icon: const Icon(Icons.visibility_outlined, size: 20),
+                          tooltip: 'Preview Attachment',
+                          onPressed: () => _handlePreviewAttachment(att),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.download_rounded, size: 20),
+                          tooltip: 'Download Attachment',
+                          onPressed: () => _handleDownloadAttachment(att),
+                        ),
+                      ],
+                    ),
                   ),
                 );
               },
@@ -1542,10 +1823,10 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
                               color: AppTheme.textSecondary(context),
                             ),
                           ),
-                          if (h.details.isNotEmpty) ...[
+                          if (h.formattedDetails.isNotEmpty) ...[
                             const SizedBox(height: 2),
                             Text(
-                              h.details,
+                              h.formattedDetails,
                               style: const TextStyle(fontSize: 12),
                             ),
                           ],

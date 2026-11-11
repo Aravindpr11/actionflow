@@ -426,6 +426,31 @@ class DocumentService {
     return 'Failed to upload file to storage: $error';
   }
 
+  /// Formats document upload errors with actionable diagnostics for user feedback
+  static String formatUploadError(dynamic error) {
+    if (error is StorageException) {
+      final code = error.statusCode;
+      final msg = error.message;
+      if (code == '403' || code == '401' || msg.toLowerCase().contains('access denied') || msg.toLowerCase().contains('permission denied')) {
+        return 'Storage access denied ($code): You do not have permission to upload files to this organization storage bucket.';
+      } else if (code == '404' || msg.toLowerCase().contains('bucket not found')) {
+        return 'Storage bucket "documents" not found on the backend.';
+      }
+      return 'Storage upload failed ($code): $msg';
+    }
+    final str = error.toString();
+    if (str.contains('42501') || str.toLowerCase().contains('permission denied')) {
+      return 'Upload permission denied: You do not have permission to upload documents to this organization.';
+    }
+    if (str.toLowerCase().contains('socket') ||
+        str.toLowerCase().contains('clientexception') ||
+        str.toLowerCase().contains('failed host lookup') ||
+        str.toLowerCase().contains('network')) {
+      return 'Network error connecting to storage. Please check your internet connection.';
+    }
+    return str.replaceFirst('Exception: ', '').replaceFirst('StateError: ', '');
+  }
+
   /// Formats download, preview, and storage retrieval errors with clear diagnostics
   static String formatDownloadError(dynamic error) {
     if (error is StorageException) {
@@ -751,6 +776,7 @@ class DocumentService {
           'department_id': ?effectiveDepartmentId,
           'created_by': ?effectiveUserId,
           'created_by_name': userName,
+          'ownership_status': 'verified',
           'is_archived': false,
           'created_at': now.toIso8601String(),
           'updated_at': now.toIso8601String(),

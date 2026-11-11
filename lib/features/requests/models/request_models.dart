@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 /// Supported Request Types in ActionFlow
@@ -237,6 +239,25 @@ class RequestAttachmentRecord {
     return '${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
+  String get fileExtension {
+    final dotIdx = fileName.lastIndexOf('.');
+    if (dotIdx != -1 && dotIdx < fileName.length - 1) {
+      return fileName.substring(dotIdx + 1).toLowerCase();
+    }
+    return '';
+  }
+
+  bool get isImage =>
+      contentType.toLowerCase().startsWith('image/') ||
+      fileExtension == 'png' ||
+      fileExtension == 'jpg' ||
+      fileExtension == 'jpeg' ||
+      fileExtension == 'webp';
+
+  bool get isPdf =>
+      contentType.toLowerCase().contains('pdf') ||
+      fileExtension == 'pdf';
+
   factory RequestAttachmentRecord.fromJson(Map<String, dynamic> json) {
     return RequestAttachmentRecord(
       id: json['id']?.toString() ?? '',
@@ -333,6 +354,57 @@ class RequestHistoryRecord {
   final Map<String, dynamic> metadata;
   final DateTime? createdAt;
 
+  /// Returns a clean, human-readable summary of details, parsing JSON payloads if present
+  String get formattedDetails {
+    final trimmed = details.trim();
+    if (trimmed.isEmpty) return '';
+
+    if (trimmed.startsWith('{') && trimmed.endsWith('}')) {
+      try {
+        final decoded = jsonDecode(trimmed);
+        if (decoded is Map<String, dynamic>) {
+          final parts = <String>[];
+          final approvalType = decoded['approval_type']?.toString();
+          final approversCount = decoded['approvers_count'];
+          final attachmentsCount = decoded['attachments_count'];
+
+          if (approvalType != null && approvalType.isNotEmpty) {
+            parts.add('$approvalType approval');
+          }
+          if (approversCount != null) {
+            final count = int.tryParse(approversCount.toString()) ?? 0;
+            parts.add('$count ${count == 1 ? 'Approver' : 'Approvers'}');
+          }
+          if (attachmentsCount != null) {
+            final count = int.tryParse(attachmentsCount.toString()) ?? 0;
+            if (count > 0) {
+              parts.add('$count ${count == 1 ? 'Attachment' : 'Attachments'}');
+            }
+          }
+
+          if (parts.isNotEmpty) {
+            final prefix = action.toLowerCase() == 'submitted'
+                ? 'Submitted for '
+                : '';
+            return '$prefix${parts.join(' • ')}';
+          }
+
+          return decoded.entries
+              .where((e) => e.value != null && e.value.toString().isNotEmpty)
+              .map((e) {
+                final key = e.key.replaceAll('_', ' ').split(' ').map((w) => w.isNotEmpty ? '${w[0].toUpperCase()}${w.substring(1)}' : '').join(' ');
+                return '$key: ${e.value}';
+              })
+              .join(' • ');
+        }
+      } catch (_) {
+        // Fallback to raw trimmed details
+      }
+    }
+
+    return trimmed;
+  }
+
   factory RequestHistoryRecord.fromJson(Map<String, dynamic> json) {
     return RequestHistoryRecord(
       id: json['id']?.toString() ?? '',
@@ -413,6 +485,7 @@ class RequestRecord {
   final String approvalType; // 'Sequential' or 'Parallel'
   final String status; // 'Draft', 'Pending', 'Under Review', 'Approved', 'Rejected', 'Completed'
   final String createdBy;
+  String get createdById => createdBy;
   final String createdByName;
   final String createdByRole;
   final String createdByEmail;
@@ -660,6 +733,7 @@ class RequestRecord {
     List<RequestAttachmentRecord>? attachments,
     List<RequestForwardRecord>? forwards,
     List<RequestHistoryRecord>? history,
+    bool clearRejection = false,
   }) {
     return RequestRecord(
       id: id ?? this.id,
@@ -682,9 +756,9 @@ class RequestRecord {
       createdByRole: createdByRole ?? this.createdByRole,
       createdByEmail: createdByEmail ?? this.createdByEmail,
       additionalNotes: additionalNotes ?? this.additionalNotes,
-      rejectionReason: rejectionReason ?? this.rejectionReason,
-      rejectedBy: rejectedBy ?? this.rejectedBy,
-      rejectedAt: rejectedAt ?? this.rejectedAt,
+      rejectionReason: clearRejection ? null : (rejectionReason ?? this.rejectionReason),
+      rejectedBy: clearRejection ? null : (rejectedBy ?? this.rejectedBy),
+      rejectedAt: clearRejection ? null : (rejectedAt ?? this.rejectedAt),
       approvedAt: approvedAt ?? this.approvedAt,
       completedAt: completedAt ?? this.completedAt,
       completedBy: completedBy ?? this.completedBy,

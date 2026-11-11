@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/config/supabase_config.dart';
+import '../../../services/app_file_picker_service.dart';
 import '../../../services/notification_service.dart';
 import '../models/request_models.dart';
 
@@ -1172,6 +1173,133 @@ class RequestService {
 
     // Mock
     return 'https://mock-storage.actionflow.local/$filePath';
+  }
+
+  /// Downloads the raw binary bytes of a request attachment from Supabase Storage
+  Future<Uint8List> getAttachmentBytes(String filePath) async {
+    final client = _client;
+    final isLive = client != null && SupabaseConfig.isInitialized && !useMockOnly;
+
+    if (filePath.trim().isEmpty) {
+      throw ArgumentError('File path cannot be empty.');
+    }
+
+    if (isLive) {
+      try {
+        final bytes = await client.storage.from('documents').download(filePath);
+        return bytes;
+      } catch (e) {
+        debugPrint('[RequestService] getAttachmentBytes error: $e');
+        rethrow;
+      }
+    }
+
+    // Mock fallback
+    return Uint8List(0);
+  }
+
+  /// Downloads a request attachment and prompts browser or platform filesystem to save it
+  Future<bool> downloadAttachment({
+    required RequestAttachmentRecord attachment,
+  }) async {
+    final bytes = await getAttachmentBytes(attachment.filePath);
+    if (bytes.isEmpty) {
+      throw StateError('Attachment content is empty.');
+    }
+    return await AppFilePicker.saveFile(
+      fileName: attachment.fileName,
+      bytes: bytes,
+      mimeType: attachment.contentType.isNotEmpty
+          ? attachment.contentType
+          : 'application/octet-stream',
+    );
+  }
+
+  // ===========================================================================
+  // 8B. RESUBMIT REJECTED REQUEST
+  // ===========================================================================
+
+  /// Allows the original requester to respond to rejection comments and resubmit
+  /// their request into the approval workflow.
+  Future<RequestRecord> resubmitRequest({
+    required String requestId,
+    required String currentUserId,
+    required String currentUserName,
+    required String currentUserRole,
+    String? comments,
+    String? additionalNotes,
+  }) async {
+    final client = _client;
+    final isLive = client != null && SupabaseConfig.isInitialized && !useMockOnly;
+
+    if (isLive) {
+      try {
+        await client.rpc(
+          'resubmit_request',
+          params: {
+            'p_request_id': requestId,
+            'p_comments': comments?.trim() ?? '',
+            'p_additional_notes': ?additionalNotes?.trim(),
+          },
+        );
+        final updatedRecord = await getRequestDetails(requestId);
+        return updatedRecord;
+      } catch (e) {
+        debugPrint('[RequestService] resubmitRequest RPC error: $e');
+        rethrow;
+      }
+    }
+
+    // Mock implementation
+    final idx = _mockRequests.indexWhere((r) => r.id == requestId);
+    if (idx == -1) throw StateError('Request not found: $requestId');
+
+    final req = _mockRequests[idx];
+    if (!req.isRejected) {
+      throw StateError('Only rejected requests can be resubmitted. Current status: ${req.status}');
+    }
+
+    final updatedApprovers = req.approvers.map((a) => RequestApproverRecord(
+      id: a.id,
+      requestId: a.requestId,
+      approverId: a.approverId,
+      approverName: a.approverName,
+      approverRole: a.approverRole,
+      approverDepartment: a.approverDepartment,
+      stepOrder: a.stepOrder,
+      status: 'Pending',
+      decisionComments: '',
+      decidedAt: null,
+      createdAt: a.createdAt,
+    )).toList();
+
+    final updatedHistory = List<RequestHistoryRecord>.from(req.history)
+      ..add(
+        RequestHistoryRecord(
+          id: 'hist-${DateTime.now().millisecondsSinceEpoch}',
+          requestId: requestId,
+          actorId: currentUserId,
+          actorName: currentUserName,
+          actorRole: currentUserRole,
+          action: 'Resubmitted',
+          details: comments != null && comments.trim().isNotEmpty
+              ? 'Requester responded and resubmitted: ${comments.trim()}'
+              : 'Request resubmitted for approval.',
+          createdAt: DateTime.now(),
+        ),
+      );
+
+    final updatedRecord = req.copyWith(
+      status: RequestStatus.pending,
+      approvers: updatedApprovers,
+      history: updatedHistory,
+      clearRejection: true,
+      additionalNotes: additionalNotes ?? req.additionalNotes,
+      updatedAt: DateTime.now(),
+    );
+
+    _mockRequests[idx] = updatedRecord;
+    return updatedRecord;
   }
 
   // ===========================================================================
