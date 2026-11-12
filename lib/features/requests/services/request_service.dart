@@ -1532,6 +1532,7 @@ class RequestService {
 
         final Set<String> seenIds = {};
         int myActionRequired = 0;
+        int underReview = 0;
         int totalInScope = 0;
         int approved = 0;
         int rejected = 0;
@@ -1543,6 +1544,9 @@ class RequestService {
           if (r.canUserApprove(userId)) {
             myActionRequired++;
           }
+          if (r.isUnderReview || r.isPending) {
+            underReview++;
+          }
           if (r.isApproved) {
             approved++;
           } else if (r.isRejected) {
@@ -1552,6 +1556,7 @@ class RequestService {
 
         return RequestApprovalSummaryCounts(
           myActionRequired: myActionRequired,
+          underReview: underReview,
           totalInScope: totalInScope,
           approved: approved,
           rejected: rejected,
@@ -1600,6 +1605,7 @@ class RequestService {
 
     final Set<String> seenIds = {};
     int myActionRequired = 0;
+    int underReview = 0;
     int totalInScope = 0;
     int approved = 0;
     int rejected = 0;
@@ -1611,6 +1617,9 @@ class RequestService {
       if (r.canUserApprove(userId)) {
         myActionRequired++;
       }
+      if (r.isUnderReview || r.isPending) {
+        underReview++;
+      }
       if (r.isApproved) {
         approved++;
       } else if (r.isRejected) {
@@ -1620,6 +1629,7 @@ class RequestService {
 
     return RequestApprovalSummaryCounts(
       myActionRequired: myActionRequired,
+      underReview: underReview,
       totalInScope: totalInScope,
       approved: approved,
       rejected: rejected,

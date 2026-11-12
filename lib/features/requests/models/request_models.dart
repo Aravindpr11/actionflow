@@ -852,12 +852,14 @@ class StaffRequestOverviewCounts {
 /// regardless of the active tab index or pagination page.
 class RequestApprovalSummaryCounts {
   final int myActionRequired;
+  final int underReview;
   final int totalInScope;
   final int approved;
   final int rejected;
 
   const RequestApprovalSummaryCounts({
     this.myActionRequired = 0,
+    this.underReview = 0,
     this.totalInScope = 0,
     this.approved = 0,
     this.rejected = 0,

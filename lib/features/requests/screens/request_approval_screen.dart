@@ -499,17 +499,55 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
     );
   }
 
+  Widget _buildApprovalTab({
+    required BuildContext context,
+    required String label,
+    required int count,
+    required Color activeColor,
+  }) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bool hasCount = count > 0;
+    final Color bgColor = hasCount
+        ? activeColor
+        : (isDark ? const Color(0xFF334155) : const Color(0xFFE2E8F0));
+    final Color textColor = hasCount
+        ? Colors.white
+        : (isDark ? const Color(0xFF94A3B8) : const Color(0xFF64748B));
+
+    return Tab(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label),
+          const SizedBox(width: 8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Text(
+              '$count',
+              style: TextStyle(
+                color: textColor,
+                fontSize: 11,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final myPendingCount =
-        _allRequests.where((r) => r.canUserApprove(widget.currentUserId)).length;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Header
-        _buildHeader(context, myPendingCount),
+        _buildHeader(context, _summaryCounts.myActionRequired),
         const SizedBox(height: 16),
 
         // Metrics Overview
@@ -532,39 +570,35 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
             unselectedLabelColor: AppTheme.textSecondary(context),
             labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
             tabs: [
-              Tab(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Text('Pending My Action'),
-                    if (myPendingCount > 0) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFFDC2626),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          '$myPendingCount',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
+              _buildApprovalTab(
+                context: context,
+                label: 'Pending My Action',
+                count: _summaryCounts.myActionRequired,
+                activeColor: const Color(0xFFDC2626),
               ),
-              const Tab(text: 'Under Review'),
-              const Tab(text: 'Approved'),
-              const Tab(text: 'Rejected'),
-              Tab(
-                text: widget.isManager
-                    ? 'All Requests (${_tabController.index == 4 ? _totalCount : _allRequests.length})'
-                    : 'All Assigned (${_tabController.index == 4 ? _totalCount : _allRequests.length})',
+              _buildApprovalTab(
+                context: context,
+                label: 'Under Review',
+                count: _summaryCounts.underReview,
+                activeColor: const Color(0xFFD97706),
+              ),
+              _buildApprovalTab(
+                context: context,
+                label: 'Approved',
+                count: _summaryCounts.approved,
+                activeColor: const Color(0xFF16A34A),
+              ),
+              _buildApprovalTab(
+                context: context,
+                label: 'Rejected',
+                count: _summaryCounts.rejected,
+                activeColor: const Color(0xFFDC2626),
+              ),
+              _buildApprovalTab(
+                context: context,
+                label: widget.isManager ? 'All Requests' : 'All Assigned',
+                count: _summaryCounts.totalInScope,
+                activeColor: const Color(0xFF0284C7),
               ),
             ],
           ),
