@@ -1303,6 +1303,85 @@ class RequestService {
   }
 
   // ===========================================================================
+  // 8B. PERMANENTLY DELETE APPROVED REQUEST
+  // ===========================================================================
+
+  /// Permanently deletes an Approved request, cleans up associated notifications,
+  /// and queues exclusive physical attachments into public.storage_deletion_queue
+  /// using the secure public.delete_approved_request RPC function.
+  Future<RequestDeletionResult> deleteApprovedRequest({
+    required String requestId,
+  }) async {
+    if (useMockOnly) {
+      final idx = _mockRequests.indexWhere((r) => r.id == requestId);
+      if (idx == -1) {
+        throw Exception('Request not found: $requestId');
+      }
+      final req = _mockRequests[idx];
+      if (!req.isApproved) {
+        throw Exception('Validation error: Only Approved requests can be permanently deleted (current status: ${req.status})');
+      }
+      _mockRequests.removeAt(idx);
+      final hasAttachments = req.attachments.isNotEmpty;
+      return RequestDeletionResult(
+        success: true,
+        requestId: req.id,
+        displayId: req.displayId,
+        queuedStorageFilesCount: hasAttachments ? req.attachments.length : 0,
+        deletedNotificationsCount: 1,
+        storageCleanupStatus: hasAttachments ? 'queued' : 'none',
+      );
+    }
+
+    final client = _client;
+    if (client == null) {
+      throw Exception('Supabase client is not initialized');
+    }
+
+    try {
+      final dynamic response = await client.rpc(
+        'delete_approved_request',
+        params: {'p_request_id': requestId},
+      );
+
+      if (response is Map) {
+        final Map<String, dynamic> respMap = Map<String, dynamic>.from(response);
+        final result = RequestDeletionResult.fromJson(respMap);
+
+        if (!result.success) {
+          throw Exception('Failed to delete request: server returned success = false');
+        }
+
+        // If exclusive files were queued, asynchronously trigger the queue processing Edge Function.
+        // We log any error explicitly without swallowing it silently.
+        if (result.queuedStorageFilesCount > 0) {
+          try {
+            final funcRes = await client.functions.invoke(
+              'process-storage-deletion-queue',
+              body: {'batch_size': 50},
+            );
+            if (funcRes.status == 200) {
+              debugPrint('[RequestService] Storage queue worker triggered successfully');
+            } else {
+              debugPrint('[RequestService] Storage queue worker returned status ${funcRes.status}: ${funcRes.data}');
+            }
+          } catch (funcErr) {
+            // Logged clearly; the queue in PostgreSQL safely persists the pending state with retry
+            debugPrint('[RequestService] Note: Asynchronous storage queue worker trigger error: $funcErr. Queue will be retried automatically.');
+          }
+        }
+
+        return result;
+      }
+
+      throw Exception('Unexpected response format from delete_approved_request: $response');
+    } catch (e) {
+      debugPrint('[RequestService] Error deleting approved request: $e');
+      rethrow;
+    }
+  }
+
+  // ===========================================================================
   // 9. STAFF APPROVAL PERMISSION CHECK
   // ===========================================================================
 

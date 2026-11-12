@@ -533,9 +533,11 @@ class RequestRecord {
   /// or a comma-separated list of pending approvers for parallel workflows.
   String get pendingApproversSummary {
     if (isApproved || isCompleted || isRejected) return 'None';
+    if (approvers.isEmpty) return 'None';
     if (isSequential) {
       final sorted = List<RequestApproverRecord>.from(approvers)
         ..sort((a, b) => a.stepOrder.compareTo(b.stepOrder));
+      if (sorted.isEmpty) return 'None';
       final next = sorted.firstWhere(
         (a) => a.isPending,
         orElse: () => sorted.first,
@@ -590,6 +592,25 @@ class RequestRecord {
   }) {
     if (!isApproved) return false;
     if (isCompleted) return false;
+    if (createdBy == userId) return true;
+    if (isCompanyAdmin) return true;
+    if (isManager && isScoped) return true;
+    return false;
+  }
+
+  /// Determines if a user is authorized to permanently delete an Approved request:
+  /// - Only Approved requests can be deleted.
+  /// - Original Requester (Staff or Manager): permitted for own request.
+  /// - Scoped Manager: permitted within authorized scope.
+  /// - Company Admin / Platform Admin: permitted according to administrative governance.
+  /// - Non-assigned Staff, out-of-scope Managers, or arbitrary users: STRICTLY FORBIDDEN.
+  bool canUserDelete(
+    String userId, {
+    bool isManager = false,
+    bool isScoped = false,
+    bool isCompanyAdmin = false,
+  }) {
+    if (!isApproved) return false;
     if (createdBy == userId) return true;
     if (isCompanyAdmin) return true;
     if (isManager && isScoped) return true;
@@ -866,6 +887,45 @@ class RequestApprovalSummaryCounts {
   });
 
   static const RequestApprovalSummaryCounts zero = RequestApprovalSummaryCounts();
+}
+
+/// Represents the audit and execution result of an Approved Request permanent deletion operation.
+class RequestDeletionResult {
+  final bool success;
+  final String requestId;
+  final String displayId;
+  final int queuedStorageFilesCount;
+  final int deletedNotificationsCount;
+  final String storageCleanupStatus; // 'none', 'queued', 'completed', 'failed'
+  final String? storageWorkerMessage;
+
+  const RequestDeletionResult({
+    required this.success,
+    required this.requestId,
+    required this.displayId,
+    this.queuedStorageFilesCount = 0,
+    this.deletedNotificationsCount = 0,
+    this.storageCleanupStatus = 'none',
+    this.storageWorkerMessage,
+  });
+
+  factory RequestDeletionResult.fromJson(Map<String, dynamic> json) {
+    return RequestDeletionResult(
+      success: json['success'] == true,
+      requestId: json['deleted_request_id']?.toString() ?? '',
+      displayId: json['deleted_display_id']?.toString() ?? '',
+      queuedStorageFilesCount: json['queued_storage_files_count'] as int? ?? 0,
+      deletedNotificationsCount: json['deleted_notifications_count'] as int? ?? 0,
+      storageCleanupStatus: json['storage_cleanup_status']?.toString() ?? 'none',
+      storageWorkerMessage: json['storage_worker_message']?.toString(),
+    );
+  }
+
+  /// True if all associated physical storage files have been confirmed cleaned up or there were none.
+  bool get isStorageCleanedUp => storageCleanupStatus == 'completed' || storageCleanupStatus == 'none';
+
+  /// True if exclusive attachments were queued and are pending or processing by the background worker.
+  bool get isStorageQueued => storageCleanupStatus == 'queued' || storageCleanupStatus == 'processing';
 }
 
 

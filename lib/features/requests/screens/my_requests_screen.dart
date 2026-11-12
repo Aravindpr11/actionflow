@@ -266,6 +266,113 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
     }
   }
 
+  Future<void> _handleDeleteRequest(RequestRecord request) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFFDC2626).withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.delete_forever_rounded, color: Color(0xFFDC2626), size: 24),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Permanently Delete Request?',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Are you sure you want to permanently delete request ${request.displayId} ("${request.title}")?',
+                style: const TextStyle(fontSize: 14),
+              ),
+              const SizedBox(height: 14),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFFEF2F2),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: const Color(0xFFFCA5A5)),
+                ),
+                child: const Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Color(0xFFDC2626), size: 20),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'This action is permanent and cannot be undone. All approval records, audit history, and exclusive attachments will be permanently removed.',
+                        style: TextStyle(color: Color(0xFF991B1B), fontSize: 13, height: 1.3),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton.icon(
+            key: const Key('confirm_delete_request_button'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            icon: const Icon(Icons.delete_forever_rounded, size: 16),
+            label: const Text('Permanently Delete'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFDC2626),
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    try {
+      final result = await RequestService.instance.deleteApprovedRequest(requestId: request.id);
+      if (result.success && mounted) {
+        final message = result.queuedStorageFilesCount > 0
+            ? 'Request ${request.displayId} has been permanently deleted. ${result.queuedStorageFilesCount} attachment(s) queued for secure storage cleanup.'
+            : 'Request ${request.displayId} has been permanently deleted.';
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: const Color(0xFF16A34A),
+          ),
+        );
+        _loadRequests();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to delete request: $e'),
+            backgroundColor: const Color(0xFFDC2626),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -920,6 +1027,25 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFF0284C7),
                         foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                  ],
+                  if (req.canUserDelete(
+                    widget.currentUserId,
+                    isManager: widget.isManager,
+                    isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+                    isScoped: widget.isManager,
+                  )) ...[
+                    OutlinedButton.icon(
+                      key: Key('delete_my_request_${req.id}'),
+                      onPressed: () => _handleDeleteRequest(req),
+                      icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFDC2626)),
+                      label: const Text('Delete', style: TextStyle(color: Color(0xFFDC2626))),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: Color(0xFFDC2626)),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         visualDensity: VisualDensity.compact,
                       ),
