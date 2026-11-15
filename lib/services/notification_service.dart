@@ -1,11 +1,17 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../core/config/supabase_config.dart';
 import '../features/dashboard/manager_dashboard/models/action_record.dart';
+import '../features/dashboard/manager_dashboard/screens/action_details_screen.dart';
 import '../features/notifications/models/app_notification.dart';
+import '../features/notifications/screens/notifications_screen.dart';
+import '../features/requests/screens/request_details_screen.dart';
+import '../main.dart';
 import '../models/organization.dart';
+import 'action_service.dart';
 import 'auth_service.dart';
+import 'browser_notification_service.dart';
 import 'sound_service.dart';
 
 /// In-memory store for in-app notifications.
@@ -232,6 +238,7 @@ class NotificationService {
   static bool useMockOnly = false;
   final Set<String> _evaluatedReminderKeys = {};
   final Set<String> _playedSoundNotificationIds = {};
+  final Set<String> _shownBrowserNotificationIds = {};
 
   RealtimeChannel? _realtimeChannel;
   String? _subscribedUserId;
@@ -252,7 +259,12 @@ class NotificationService {
   }
 
   /// Clears the in-memory session cache of evaluated reminder checks.
-  void clearReminderSessionCache() => _evaluatedReminderKeys.clear();
+  void clearReminderSessionCache() {
+    _evaluatedReminderKeys.clear();
+    _playedSoundNotificationIds.clear();
+    _shownBrowserNotificationIds.clear();
+    BrowserNotificationService.instance.resetSessionCache();
+  }
 
   SupabaseClient? get _client => _clientOverride ?? SupabaseConfig.clientOrNull;
 
@@ -412,6 +424,9 @@ class NotificationService {
       _realtimeChannel = null;
       _subscribedUserId = null;
     }
+    _playedSoundNotificationIds.clear();
+    _shownBrowserNotificationIds.clear();
+    BrowserNotificationService.instance.resetSessionCache();
   }
 
   void _handleIncomingRealtimeNotification(AppNotification notif) {
@@ -423,7 +438,81 @@ class NotificationService {
       unawaited(SoundService.instance.playNotificationSound());
     }
 
+    // Deduplication check for browser desktop notification
+    if (!_shownBrowserNotificationIds.contains(notif.id)) {
+      _shownBrowserNotificationIds.add(notif.id);
+      unawaited(
+        BrowserNotificationService.instance.showNotification(
+          title: notif.title,
+          body: notif.message,
+          tag: notif.id,
+          actionId: notif.effectiveActionIdentifier ?? notif.actionId,
+          requestId: notif.effectiveRequestIdentifier ?? notif.actionId,
+          onClick: () => handleNotificationNavigation(notif),
+        ),
+      );
+    }
+
     notifyListenersOfNewAlert(notif);
+  }
+
+  /// Navigates the application to the corresponding record upon notification click.
+  Future<void> handleNotificationNavigation(AppNotification notif) async {
+    final navContext = ActionFlowApp.navigatorKey.currentContext;
+    if (navContext == null) return;
+
+    final reqId = notif.effectiveRequestIdentifier;
+    if (reqId != null && reqId.isNotEmpty) {
+      final profile = AuthService.instance.currentProfileData;
+      if (profile != null) {
+        Navigator.of(navContext).push(
+          MaterialPageRoute(
+            builder: (_) => RequestDetailsScreen(
+              requestId: reqId,
+              currentUserId: profile.userProfile.id,
+              currentUserName: profile.userProfile.name,
+              currentUserRole: profile.userProfile.role,
+              currentUserEmail: profile.userProfile.email,
+              organizationId: profile.organizationId ?? '',
+              isManager: profile.roleCode.toLowerCase() == 'manager',
+            ),
+          ),
+        );
+        return;
+      }
+    }
+
+    final actId = notif.effectiveActionIdentifier ?? notif.actionId;
+    if (actId != null && actId.isNotEmpty) {
+      try {
+        final action = await ActionService.instance.fetchActionById(actId);
+        if (action != null && ActionFlowApp.navigatorKey.currentContext != null) {
+          final profile = AuthService.instance.currentProfileData;
+          Navigator.of(ActionFlowApp.navigatorKey.currentContext!).push(
+            MaterialPageRoute(
+              builder: (_) => ActionDetailsScreen(
+                action: action,
+                isWorker: profile?.roleCode.toLowerCase() != 'manager',
+                currentUserId: profile?.userProfile.id,
+              ),
+            ),
+          );
+          return;
+        }
+      } catch (e) {
+        debugPrint('[NotificationNavigation] Error navigating to action $actId: $e');
+      }
+    }
+
+    // Fallback: Notifications screen
+    final profile = AuthService.instance.currentProfileData;
+    if (profile != null && ActionFlowApp.navigatorKey.currentContext != null) {
+      Navigator.of(ActionFlowApp.navigatorKey.currentContext!).push(
+        MaterialPageRoute(
+          builder: (_) => NotificationsScreen(userId: profile.userProfile.id),
+        ),
+      );
+    }
   }
 
   // ===========================================================================
@@ -713,6 +802,23 @@ class NotificationService {
       );
       final created = _mockStore.createNotification(notif);
       if (!isExisting) {
+        if (!_playedSoundNotificationIds.contains(created.id)) {
+          _playedSoundNotificationIds.add(created.id);
+          unawaited(SoundService.instance.playNotificationSound());
+        }
+        if (!_shownBrowserNotificationIds.contains(created.id)) {
+          _shownBrowserNotificationIds.add(created.id);
+          unawaited(
+            BrowserNotificationService.instance.showNotification(
+              title: created.title,
+              body: created.message,
+              tag: created.id,
+              actionId: created.effectiveActionIdentifier ?? created.actionId,
+              requestId: created.effectiveRequestIdentifier ?? created.actionId,
+              onClick: () => handleNotificationNavigation(created),
+            ),
+          );
+        }
         notifyListenersOfNewAlert(created);
       }
       return created;

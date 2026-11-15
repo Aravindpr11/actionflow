@@ -14,6 +14,7 @@ import 'package:action_flow/models/action_section.dart';
 import 'package:action_flow/models/organization.dart';
 import 'package:action_flow/services/action_section_service.dart';
 import 'package:action_flow/services/auth_service.dart';
+import 'package:action_flow/services/document_service.dart';
 import 'package:action_flow/services/email_service.dart';
 import 'package:action_flow/services/notification_service.dart';
 import 'package:action_flow/services/report_service.dart';
@@ -3248,6 +3249,13 @@ class ActionService {
       return (success: false, error: 'Attachment file cannot be empty.', updatedAction: null);
     }
 
+    // Validate file size and format against 25MB ceiling and supported extensions
+    final valErr = DocumentService.validateFile(fileName: cleanFile, fileSize: bytes.length);
+    if (valErr != null) {
+      return (success: false, error: valErr, updatedAction: null);
+    }
+
+    final mimeType = DocumentService.resolveMimeType(cleanFile);
     final effectiveOrg = resolveOrganizationUuid(action.organizationId);
 
     final path = buildActionAttachmentPath(
@@ -3273,7 +3281,7 @@ class ActionService {
         await client.storage.from('documents').uploadBinary(
           path,
           bytes,
-          fileOptions: const FileOptions(upsert: false),
+          fileOptions: FileOptions(contentType: mimeType, upsert: false),
         );
         uploaded = true;
       } catch (e) {
@@ -3284,7 +3292,7 @@ class ActionService {
           await client.storage.from('documents').uploadBinary(
             path,
             bytes,
-            fileOptions: const FileOptions(upsert: true),
+            fileOptions: FileOptions(contentType: mimeType, upsert: true),
           );
           uploaded = true;
         } catch (upsertErr) {
@@ -3307,7 +3315,7 @@ class ActionService {
               await client.storage.from('documents').uploadBinary(
                 fallbackPath,
                 bytes,
-                fileOptions: const FileOptions(upsert: false),
+                fileOptions: FileOptions(contentType: mimeType, upsert: false),
               );
               uploaded = true;
               break;

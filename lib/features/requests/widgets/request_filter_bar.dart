@@ -88,42 +88,61 @@ class RequestFilterBar extends StatelessWidget {
       ),
       child: Column(
         children: [
-          Row(
-            children: [
-              // Search Input
-              Expanded(
-                child: TextField(
-                  key: const Key('request_search_field'),
-                  onChanged: onSearchChanged,
-                  decoration: InputDecoration(
-                    hintText: 'Search by ID, title, requester, department, site...',
-                    prefixIcon: const Icon(Icons.search_rounded, size: 20),
-                    isDense: true,
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(8),
-                      borderSide: BorderSide(color: AppTheme.cardBorder(context)),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isNarrow = constraints.maxWidth < 450;
+              return Row(
+                children: [
+                  // Search Input
+                  Expanded(
+                    child: TextField(
+                      key: const Key('request_search_field'),
+                      onChanged: onSearchChanged,
+                      decoration: InputDecoration(
+                        hintText: isNarrow
+                            ? 'Search requests...'
+                            : 'Search by ID, title, requester, department, site...',
+                        prefixIcon: const Icon(Icons.search_rounded, size: 20),
+                        isDense: true,
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                          borderSide: BorderSide(color: AppTheme.cardBorder(context)),
+                        ),
+                        filled: true,
+                        fillColor: Theme.of(context).brightness == Brightness.dark
+                            ? const Color(0xFF1E293B)
+                            : Colors.white,
+                      ),
                     ),
-                    filled: true,
-                    fillColor: Theme.of(context).brightness == Brightness.dark
-                        ? const Color(0xFF1E293B)
-                        : Colors.white,
                   ),
-                ),
-              ),
-              if (hasActiveFilters) ...[
-                const SizedBox(width: 8),
-                TextButton.icon(
-                  key: const Key('request_reset_filters_button'),
-                  onPressed: onResetFilters,
-                  icon: const Icon(Icons.filter_alt_off_rounded, size: 16),
-                  label: const Text('Reset Filters'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFFDC2626),
-                  ),
-                ),
-              ],
-            ],
+                  if (hasActiveFilters) ...[
+                    const SizedBox(width: 8),
+                    if (isNarrow)
+                      IconButton(
+                        key: const Key('request_reset_filters_button'),
+                        onPressed: onResetFilters,
+                        icon: const Icon(Icons.filter_alt_off_rounded, size: 18),
+                        tooltip: 'Reset Filters',
+                        style: IconButton.styleFrom(
+                          foregroundColor: const Color(0xFFDC2626),
+                          padding: const EdgeInsets.all(8),
+                        ),
+                      )
+                    else
+                      TextButton.icon(
+                        key: const Key('request_reset_filters_button'),
+                        onPressed: onResetFilters,
+                        icon: const Icon(Icons.filter_alt_off_rounded, size: 16),
+                        label: const Text('Reset Filters'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: const Color(0xFFDC2626),
+                        ),
+                      ),
+                  ],
+                ],
+              );
+            },
           ),
           const SizedBox(height: 10),
           // Filter Chips / Dropdowns Row

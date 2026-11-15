@@ -4,6 +4,7 @@ import 'sound_platform.dart';
 
 class SoundPlatformWeb implements SoundPlatform {
   static const String _prefKey = 'actionflow_notification_sound_enabled';
+  static const String _volumePrefKey = 'actionflow_notification_sound_volume';
   web.AudioContext? _audioContext;
   bool _unlocked = false;
 
@@ -26,6 +27,26 @@ class SoundPlatformWeb implements SoundPlatform {
   void setSoundEnabled(bool enabled) {
     try {
       web.window.localStorage.setItem(_prefKey, enabled ? 'true' : 'false');
+    } catch (_) {}
+  }
+
+  @override
+  double get soundVolume {
+    try {
+      final val = web.window.localStorage.getItem(_volumePrefKey);
+      if (val == null) return 0.8;
+      final parsed = double.tryParse(val);
+      return (parsed ?? 0.8).clamp(0.0, 1.0);
+    } catch (_) {
+      return 0.8;
+    }
+  }
+
+  @override
+  void setSoundVolume(double volume) {
+    try {
+      final clamped = volume.clamp(0.0, 1.0);
+      web.window.localStorage.setItem(_volumePrefKey, clamped.toStringAsFixed(2));
     } catch (_) {}
   }
 
@@ -76,6 +97,8 @@ class SoundPlatformWeb implements SoundPlatform {
   @override
   Future<void> playNotificationSound() async {
     if (!isSoundEnabled) return;
+    final vol = soundVolume;
+    if (vol <= 0.001) return;
 
     try {
       _audioContext ??= web.AudioContext();
@@ -91,7 +114,7 @@ class SoundPlatformWeb implements SoundPlatform {
       final gain1 = ctx.createGain();
       osc1.type = 'sine';
       osc1.frequency.setValueAtTime(880, now);
-      gain1.gain.setValueAtTime(0.12, now);
+      gain1.gain.setValueAtTime(0.12 * vol, now);
       gain1.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
       osc1.connect(gain1);
       gain1.connect(ctx.destination);
@@ -103,14 +126,14 @@ class SoundPlatformWeb implements SoundPlatform {
       final gain2 = ctx.createGain();
       osc2.type = 'sine';
       osc2.frequency.setValueAtTime(1320, now + 0.10);
-      gain2.gain.setValueAtTime(0.15, now + 0.10);
+      gain2.gain.setValueAtTime(0.15 * vol, now + 0.10);
       gain2.gain.exponentialRampToValueAtTime(0.001, now + 0.38);
       osc2.connect(gain2);
       gain2.connect(ctx.destination);
       osc2.start(now + 0.10);
       osc2.stop(now + 0.38);
     } catch (_) {
-      // Gracefully handle browser audio restrictions
+      // Gracefully handle browser audio restrictions or tab visibility suspensions
     }
   }
 }

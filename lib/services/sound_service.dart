@@ -21,6 +21,14 @@ class SoundService {
     _platform.setSoundEnabled(enabled);
   }
 
+  /// Sound volume between 0.0 (silent) and 1.0 (full).
+  double get soundVolume => _platform.soundVolume;
+
+  /// Sets user preference for notification sound volume.
+  void setSoundVolume(double volume) {
+    _platform.setSoundVolume(volume);
+  }
+
   /// Toggles sound preference between ON and OFF. Returns new state.
   bool toggleSound() {
     final next = !isSoundEnabled;

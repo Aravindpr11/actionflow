@@ -862,9 +862,27 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
     }
 
     final canIApprove = req.canUserApprove(widget.currentUserId);
+    final isMobile = MediaQuery.sizeOf(context).width < 768;
+    final hasActions = canIApprove ||
+        (req.isRejected && _isRequester) ||
+        req.canUserComplete(
+          widget.currentUserId,
+          isManager: widget.isManager,
+          isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+          isScoped: widget.isManager,
+        ) ||
+        req.canUserDelete(
+          widget.currentUserId,
+          isManager: widget.isManager,
+          isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+          isScoped: widget.isManager,
+        );
 
     return Scaffold(
-      appBar: _buildAppBar(context, req, canIApprove),
+      appBar: _buildAppBar(context, req, canIApprove, isMobile),
+      bottomNavigationBar: (isMobile && hasActions)
+          ? _buildMobileBottomBar(context, req, canIApprove)
+          : null,
       body: SingleChildScrollView(
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         child: Center(
@@ -939,7 +957,7 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
   // ===========================================================================
   // APP BAR
   // ===========================================================================
-  PreferredSizeWidget _buildAppBar(BuildContext context, RequestRecord req, bool canIApprove) {
+  PreferredSizeWidget _buildAppBar(BuildContext context, RequestRecord req, bool canIApprove, bool isMobile) {
     return AppBar(
       elevation: 0,
       leading: IconButton(
@@ -988,86 +1006,183 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
           tooltip: 'Forward Request',
           onPressed: _openForwardDialog,
         ),
-        if (req.isRejected && _isRequester) ...[
-          ElevatedButton.icon(
-            onPressed: () => _showResubmitDialog(req),
-            icon: const Icon(Icons.replay_rounded, size: 16),
-            label: const Text('Resubmit'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              visualDensity: VisualDensity.compact,
+        if (!isMobile) ...[
+          if (req.isRejected && _isRequester) ...[
+            ElevatedButton.icon(
+              onPressed: () => _showResubmitDialog(req),
+              icon: const Icon(Icons.replay_rounded, size: 16),
+              label: const Text('Resubmit'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                visualDensity: VisualDensity.compact,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-        ],
-        if (canIApprove) ...[
-          OutlinedButton.icon(
-            onPressed: _handleReject,
-            icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
-            label: const Text('Reject', style: TextStyle(color: Color(0xFFDC2626))),
-            style: OutlinedButton.styleFrom(
-              side: const BorderSide(color: Color(0xFFDC2626)),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              visualDensity: VisualDensity.compact,
+            const SizedBox(width: 8),
+          ],
+          if (canIApprove) ...[
+            OutlinedButton.icon(
+              onPressed: _handleReject,
+              icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
+              label: const Text('Reject', style: TextStyle(color: Color(0xFFDC2626))),
+              style: OutlinedButton.styleFrom(
+                side: const BorderSide(color: Color(0xFFDC2626)),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                visualDensity: VisualDensity.compact,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-          ElevatedButton.icon(
-            onPressed: _handleApprove,
-            icon: const Icon(Icons.check_rounded, size: 16),
-            label: const Text('Approve'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF16A34A),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-              visualDensity: VisualDensity.compact,
+            const SizedBox(width: 8),
+            ElevatedButton.icon(
+              onPressed: _handleApprove,
+              icon: const Icon(Icons.check_rounded, size: 16),
+              label: const Text('Approve'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF16A34A),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                visualDensity: VisualDensity.compact,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-        ],
-        if (req.canUserComplete(
-          widget.currentUserId,
-          isManager: widget.isManager,
-          isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
-          isScoped: widget.isManager,
-        )) ...[
-          ElevatedButton.icon(
-            onPressed: _handleComplete,
-            icon: const Icon(Icons.task_alt_rounded, size: 16),
-            label: const Text('Mark Completed'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0284C7),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              visualDensity: VisualDensity.compact,
+            const SizedBox(width: 8),
+          ],
+          if (req.canUserComplete(
+            widget.currentUserId,
+            isManager: widget.isManager,
+            isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+            isScoped: widget.isManager,
+          )) ...[
+            ElevatedButton.icon(
+              onPressed: _handleComplete,
+              icon: const Icon(Icons.task_alt_rounded, size: 16),
+              label: const Text('Mark Completed'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF0284C7),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                visualDensity: VisualDensity.compact,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
-        ],
-        if (req.canUserDelete(
-          widget.currentUserId,
-          isManager: widget.isManager,
-          isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
-          isScoped: widget.isManager,
-        )) ...[
-          ElevatedButton.icon(
-            key: const Key('delete_request_button'),
-            onPressed: _isDeleting ? null : () => _handleDeleteRequest(req),
-            icon: const Icon(Icons.delete_forever_rounded, size: 16),
-            label: const Text('Delete Request'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFFDC2626),
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              visualDensity: VisualDensity.compact,
+            const SizedBox(width: 8),
+          ],
+          if (req.canUserDelete(
+            widget.currentUserId,
+            isManager: widget.isManager,
+            isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+            isScoped: widget.isManager,
+          )) ...[
+            ElevatedButton.icon(
+              key: const Key('delete_request_button'),
+              onPressed: _isDeleting ? null : () => _handleDeleteRequest(req),
+              icon: const Icon(Icons.delete_forever_rounded, size: 16),
+              label: const Text('Delete Request'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFDC2626),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                visualDensity: VisualDensity.compact,
+              ),
             ),
-          ),
-          const SizedBox(width: 8),
+            const SizedBox(width: 8),
+          ],
         ],
         const SizedBox(width: 8),
       ],
+    );
+  }
+
+  /// Sticky mobile bottom bar providing quick access to primary actions
+  Widget _buildMobileBottomBar(BuildContext context, RequestRecord req, bool canIApprove) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: AppTheme.cardBg(context),
+        border: Border(top: BorderSide(color: AppTheme.cardBorder(context))),
+        boxShadow: [
+          BoxShadow(
+            color: isDark ? Colors.black26 : const Color(0x0F000000),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
+        ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Wrap(
+          alignment: WrapAlignment.end,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            if (req.isRejected && _isRequester)
+              ElevatedButton.icon(
+                onPressed: () => _showResubmitDialog(req),
+                icon: const Icon(Icons.replay_rounded, size: 16),
+                label: const Text('Resubmit'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+              ),
+            if (canIApprove) ...[
+              OutlinedButton.icon(
+                onPressed: _handleReject,
+                icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
+                label: const Text('Reject', style: TextStyle(color: Color(0xFFDC2626))),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFFDC2626)),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+              ),
+              ElevatedButton.icon(
+                onPressed: _handleApprove,
+                icon: const Icon(Icons.check_rounded, size: 16),
+                label: const Text('Approve'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF16A34A),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+              ),
+            ],
+            if (req.canUserComplete(
+              widget.currentUserId,
+              isManager: widget.isManager,
+              isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+              isScoped: widget.isManager,
+            ))
+              ElevatedButton.icon(
+                onPressed: _handleComplete,
+                icon: const Icon(Icons.task_alt_rounded, size: 16),
+                label: const Text('Mark Completed'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF0284C7),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+              ),
+            if (req.canUserDelete(
+              widget.currentUserId,
+              isManager: widget.isManager,
+              isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+              isScoped: widget.isManager,
+            ))
+              ElevatedButton.icon(
+                key: const Key('delete_request_mobile_button'),
+                onPressed: _isDeleting ? null : () => _handleDeleteRequest(req),
+                icon: const Icon(Icons.delete_forever_rounded, size: 16),
+                label: const Text('Delete Request'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFDC2626),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                ),
+              ),
+          ],
+        ),
+      ),
     );
   }
 

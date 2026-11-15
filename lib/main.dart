@@ -25,6 +25,9 @@ void main() async {
 class ActionFlowApp extends StatelessWidget {
   const ActionFlowApp({super.key});
 
+  /// Global navigator key allowing notification click handlers and deep links to navigate.
+  static final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -35,6 +38,7 @@ class ActionFlowApp extends StatelessWidget {
             SoundService.instance.unlockAudio();
           },
           child: MaterialApp(
+            navigatorKey: navigatorKey,
             title: AppConstants.appName,
             debugShowCheckedModeBanner: false,
             theme: AppTheme.lightTheme,

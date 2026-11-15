@@ -2100,21 +2100,19 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = MediaQuery.sizeOf(context).width >= 950;
     return Scaffold(
       key: _scaffoldKey,
       backgroundColor: AppTheme.scaffoldBg(context),
-      drawer: LayoutBuilder(
-        builder: (context, constraints) {
-          if (constraints.maxWidth >= 950) return const SizedBox.shrink();
-          return Drawer(
-            child: _WorkerSidebar(
-              selectedIndex: _selectedNavIndex,
-              onNavSelected: _handleNavSelection,
-              hasStaffApprovalAuthority: _hasStaffApprovalAuthority,
+      drawer: isDesktop
+          ? null
+          : Drawer(
+              child: _WorkerSidebar(
+                selectedIndex: _selectedNavIndex,
+                onNavSelected: _handleNavSelection,
+                hasStaffApprovalAuthority: _hasStaffApprovalAuthority,
+              ),
             ),
-          );
-        },
-      ),
       body: QuickAlertListener(
         userId: _staffProfile.id,
         onActionTap: _handleNotificationActionTap,

@@ -1,5 +1,8 @@
 import 'package:action_flow/core/theme/app_theme.dart';
 import 'package:action_flow/core/theme/theme_controller.dart';
+import 'package:action_flow/services/browser_notification_service.dart';
+import 'package:action_flow/services/sound_service.dart';
+import 'package:action_flow/widgets/notifications/browser_notification_dialogs.dart';
 import 'package:flutter/material.dart';
 
 /// Comprehensive Settings screen featuring Appearance, Notifications, and Portal Preferences.
@@ -21,6 +24,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
   // System & Portal Preferences
   bool _compactTableDensity = false;
   bool _autoRefreshData = true;
+
+  @override
+  void initState() {
+    super.initState();
+    final bn = BrowserNotificationService.instance;
+    _browserPushAlerts =
+        bn.isSupported && bn.permissionStatus.isGranted && bn.isNotificationEnabled;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -317,8 +328,84 @@ class _SettingsScreenState extends State<SettingsScreen> {
                       color: AppTheme.cardBorder(context),
                     ),
                     SwitchListTile.adaptive(
+                      title: Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              'Browser Desktop Notifications',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.w600,
+                                color: AppTheme.textPrimary(context),
+                              ),
+                            ),
+                          ),
+                          _buildPermissionBadge(context),
+                        ],
+                      ),
+                      subtitle: Text(
+                        'Show operating system desktop alerts when actions, requests, or updates arrive',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textSecondary(context),
+                        ),
+                      ),
+                      value: _browserPushAlerts,
+                      onChanged: (val) async {
+                        final bn = BrowserNotificationService.instance;
+                        if (!bn.isSupported) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text(
+                                  'Browser notifications are not supported in this environment.'),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                          return;
+                        }
+                        if (val) {
+                          if (bn.permissionStatus.isDenied) {
+                            BrowserNotificationDialogs.showBlockedInstructions(
+                                context);
+                            setState(() => _browserPushAlerts = false);
+                            return;
+                          }
+                          if (bn.permissionStatus.isDefault) {
+                            final res = await bn.requestPermission();
+                            if (!context.mounted) return;
+                            setState(() {
+                              _browserPushAlerts = res.isGranted;
+                            });
+                            if (res.isGranted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text(
+                                      'Browser desktop notifications enabled!'),
+                                  behavior: SnackBarBehavior.floating,
+                                ),
+                              );
+                            } else if (res.isDenied) {
+                              BrowserNotificationDialogs
+                                  .showBlockedInstructions(context);
+                            }
+                            return;
+                          }
+                          bn.setNotificationEnabled(true);
+                          setState(() => _browserPushAlerts = true);
+                        } else {
+                          bn.setNotificationEnabled(false);
+                          setState(() => _browserPushAlerts = false);
+                        }
+                      },
+                    ),
+                    Divider(
+                      height: 1,
+                      thickness: 1,
+                      color: AppTheme.cardBorder(context),
+                    ),
+                    SwitchListTile.adaptive(
                       title: Text(
-                        'Browser Push Notifications',
+                        'Notification Sound Alerts',
                         style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
@@ -326,16 +413,72 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         ),
                       ),
                       subtitle: Text(
-                        'Show instant desktop notifications for urgent HSSE updates',
+                        'Play a gentle chime when new actions, approvals, or escalations arrive',
                         style: TextStyle(
                           fontSize: 12,
                           color: AppTheme.textSecondary(context),
                         ),
                       ),
-                      value: _browserPushAlerts,
-                      onChanged: (val) =>
-                          setState(() => _browserPushAlerts = val),
+                      value: SoundService.instance.isSoundEnabled,
+                      onChanged: (val) {
+                        setState(() {
+                          SoundService.instance.setSoundEnabled(val);
+                        });
+                      },
                     ),
+                    if (SoundService.instance.isSoundEnabled) ...[
+                      Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 16, vertical: 6),
+                        child: Row(
+                          children: [
+                            Icon(Icons.volume_down_rounded,
+                                size: 18,
+                                color: AppTheme.textSecondary(context)),
+                            Expanded(
+                              child: SliderTheme(
+                                data: SliderTheme.of(context).copyWith(
+                                  trackHeight: 3,
+                                  thumbShape: const RoundSliderThumbShape(
+                                      enabledThumbRadius: 6),
+                                ),
+                                child: Slider(
+                                  value: SoundService.instance.soundVolume,
+                                  min: 0.1,
+                                  max: 1.0,
+                                  divisions: 9,
+                                  label:
+                                      '${(SoundService.instance.soundVolume * 100).round()}%',
+                                  onChanged: (val) {
+                                    setState(() {
+                                      SoundService.instance.setSoundVolume(val);
+                                    });
+                                  },
+                                ),
+                              ),
+                            ),
+                            Icon(Icons.volume_up_rounded,
+                                size: 18,
+                                color: AppTheme.textSecondary(context)),
+                            const SizedBox(width: 8),
+                            OutlinedButton.icon(
+                              onPressed: () =>
+                                  SoundService.instance.playNotificationSound(),
+                              icon: const Icon(Icons.play_arrow_rounded,
+                                  size: 14),
+                              label: const Text('Test Chime',
+                                  style: TextStyle(fontSize: 11)),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                minimumSize: Size.zero,
+                                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -559,6 +702,47 @@ class _SettingsScreenState extends State<SettingsScreen> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPermissionBadge(BuildContext context) {
+    final bn = BrowserNotificationService.instance;
+    final status = bn.permissionStatus;
+
+    final (color, label) = switch (status) {
+      NotificationPermissionStatus.granted => (
+          const Color(0xFF16A34A),
+          'Granted'
+        ),
+      NotificationPermissionStatus.denied => (
+          const Color(0xFFDC2626),
+          'Blocked'
+        ),
+      NotificationPermissionStatus.defaultStatus => (
+          const Color(0xFF64748B),
+          'Not Requested'
+        ),
+      NotificationPermissionStatus.unsupported => (
+          const Color(0xFF94A3B8),
+          'Unsupported'
+        ),
+    };
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2.5),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withValues(alpha: 0.3)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 10.5,
+          fontWeight: FontWeight.w600,
+          color: color,
         ),
       ),
     );

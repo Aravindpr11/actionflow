@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../services/browser_notification_service.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/sound_service.dart';
+import '../../../widgets/notifications/browser_notification_dialogs.dart';
 import '../models/app_notification.dart';
 
 /// Interactive Notification Centre view for both Manager and Staff Portals.
@@ -250,6 +252,11 @@ class _NotificationCentreViewState extends State<NotificationCentreView> {
                   ],
                 ),
               ),
+              // Browser Desktop Notifications Button
+              if (BrowserNotificationService.instance.isSupported) ...[
+                _buildBrowserNotificationButton(context),
+                const SizedBox(width: 8),
+              ],
               // Sound Toggle Button
               OutlinedButton.icon(
                 onPressed: () {
@@ -700,5 +707,107 @@ class _NotificationCentreViewState extends State<NotificationCentreView> {
         ),
       ),
     );
+  }
+
+  Widget _buildBrowserNotificationButton(BuildContext context) {
+    final bn = BrowserNotificationService.instance;
+    final status = bn.permissionStatus;
+
+    if (status.isGranted) {
+      final enabled = bn.isNotificationEnabled;
+      return OutlinedButton.icon(
+        onPressed: () {
+          setState(() {
+            bn.toggleNotificationEnabled();
+          });
+        },
+        icon: Icon(
+          enabled
+              ? Icons.notifications_active_rounded
+              : Icons.notifications_off_rounded,
+          size: 15,
+          color: enabled
+              ? const Color(0xFF16A34A)
+              : AppTheme.textSecondary(context),
+        ),
+        label: Text(
+          enabled ? 'Desktop Alerts: ON' : 'Desktop Alerts: Muted',
+          style: TextStyle(
+            fontSize: 11.5,
+            color: enabled
+                ? const Color(0xFF16A34A)
+                : AppTheme.textSecondary(context),
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          side: BorderSide(
+            color: enabled
+                ? const Color(0xFF16A34A).withValues(alpha: 0.4)
+                : AppTheme.cardBorder(context),
+          ),
+        ),
+      );
+    } else if (status.isDenied) {
+      return OutlinedButton.icon(
+        onPressed: () =>
+            BrowserNotificationDialogs.showBlockedInstructions(context),
+        icon: const Icon(
+          Icons.notifications_off_rounded,
+          size: 15,
+          color: Color(0xFFDC2626),
+        ),
+        label: const Text(
+          'Alerts Blocked (Info)',
+          style: TextStyle(
+            fontSize: 11.5,
+            color: Color(0xFFDC2626),
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          side: BorderSide(
+            color: const Color(0xFFDC2626).withValues(alpha: 0.4),
+          ),
+        ),
+      );
+    } else {
+      // Default (Not Requested)
+      return OutlinedButton.icon(
+        onPressed: () async {
+          final res = await bn.requestPermission();
+          if (!context.mounted) return;
+          setState(() {});
+          if (res.isGranted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Browser desktop notifications enabled!'),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+          } else if (res.isDenied) {
+            BrowserNotificationDialogs.showBlockedInstructions(context);
+          }
+        },
+        icon: const Icon(
+          Icons.notifications_outlined,
+          size: 15,
+          color: Color(0xFF1565C0),
+        ),
+        label: const Text(
+          'Enable Desktop Alerts',
+          style: TextStyle(
+            fontSize: 11.5,
+            color: Color(0xFF1565C0),
+          ),
+        ),
+        style: OutlinedButton.styleFrom(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          side: BorderSide(
+            color: const Color(0xFF1565C0).withValues(alpha: 0.4),
+          ),
+        ),
+      );
+    }
   }
 }

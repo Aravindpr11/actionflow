@@ -3,8 +3,10 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_theme.dart';
+import '../../../services/browser_notification_service.dart';
 import '../../../services/notification_service.dart';
 import '../../../services/sound_service.dart';
+import '../../../widgets/notifications/browser_notification_dialogs.dart';
 import '../models/app_notification.dart';
 
 /// Interactive compact notification dropdown card displayed directly beneath the bell icon.
@@ -320,6 +322,11 @@ class _NotificationDropdownOverlayState
                 ),
               ),
             ),
+          // Browser Desktop Notifications Button
+          if (BrowserNotificationService.instance.isSupported) ...[
+            _buildBrowserNotificationIcon(context),
+            const SizedBox(width: 4),
+          ],
           // Sound Toggle Button
           Tooltip(
             message: SoundService.instance.isSoundEnabled
@@ -605,6 +612,89 @@ class _NotificationDropdownOverlayState
         ],
       ),
     );
+  }
+
+  Widget _buildBrowserNotificationIcon(BuildContext context) {
+    final bn = BrowserNotificationService.instance;
+    final status = bn.permissionStatus;
+
+    if (status.isGranted) {
+      final enabled = bn.isNotificationEnabled;
+      return Tooltip(
+        message: enabled
+            ? 'Desktop Notifications: ON (Click to mute)'
+            : 'Desktop Notifications: MUTED (Click to un-mute)',
+        child: InkWell(
+          onTap: () {
+            setState(() {
+              bn.toggleNotificationEnabled();
+            });
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(
+              enabled
+                  ? Icons.notifications_active_rounded
+                  : Icons.notifications_off_rounded,
+              size: 16,
+              color: enabled
+                  ? const Color(0xFF16A34A)
+                  : AppTheme.textSecondary(context),
+            ),
+          ),
+        ),
+      );
+    } else if (status.isDenied) {
+      return Tooltip(
+        message:
+            'Desktop Notifications: Blocked (Click for instructions to unblock)',
+        child: InkWell(
+          onTap: () =>
+              BrowserNotificationDialogs.showBlockedInstructions(context),
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: const Icon(
+              Icons.notifications_off_rounded,
+              size: 16,
+              color: Color(0xFFDC2626),
+            ),
+          ),
+        ),
+      );
+    } else {
+      // Default / Not Requested
+      return Tooltip(
+        message: 'Click to enable Desktop Notifications',
+        child: InkWell(
+          onTap: () async {
+            final res = await bn.requestPermission();
+            if (!context.mounted) return;
+            setState(() {});
+            if (res.isGranted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('Browser desktop notifications enabled!'),
+                  behavior: SnackBarBehavior.floating,
+                ),
+              );
+            } else if (res.isDenied) {
+              BrowserNotificationDialogs.showBlockedInstructions(context);
+            }
+          },
+          borderRadius: BorderRadius.circular(6),
+          child: Padding(
+            padding: const EdgeInsets.all(4),
+            child: Icon(
+              Icons.notifications_outlined,
+              size: 16,
+              color: AppTheme.primaryColor,
+            ),
+          ),
+        ),
+      );
+    }
   }
 }
 

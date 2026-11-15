@@ -371,9 +371,11 @@ class _ReportHeader extends StatelessWidget {
           ),
         ],
       ),
-      child: Row(
-        children: [
-          Container(
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isNarrow = constraints.maxWidth < 480;
+
+          final iconWidget = Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: const Color(0xFF1565C0).withValues(alpha: 0.12),
@@ -384,41 +386,40 @@ class _ReportHeader extends StatelessWidget {
               color: Color(0xFF1565C0),
               size: 22,
             ),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Reports & Analytics',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary(context),
-                  ),
+          );
+
+          final titleWidget = Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Reports & Analytics',
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary(context),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  hasFilters
-                      ? 'Showing $resultCount of $totalCount actions'
-                      : 'All $totalCount actions',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: AppTheme.textSecondary(context),
-                  ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                hasFilters
+                    ? 'Showing $resultCount of $totalCount actions'
+                    : 'All $totalCount actions',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: AppTheme.textSecondary(context),
                 ),
-              ],
-            ),
-          ),
-          IconButton(
+              ),
+            ],
+          );
+
+          final refreshBtn = IconButton(
             onPressed: onRefresh,
             icon: const Icon(Icons.refresh_rounded, size: 20),
             tooltip: 'Refresh data',
             color: AppTheme.textSecondary(context),
-          ),
-          const SizedBox(width: 4),
-          ElevatedButton.icon(
+          );
+
+          final exportBtn = ElevatedButton.icon(
             onPressed: onExport,
             icon: const Icon(Icons.download_rounded, size: 16),
             label: const Text('Export Excel'),
@@ -434,8 +435,40 @@ class _ReportHeader extends StatelessWidget {
                 borderRadius: BorderRadius.circular(10),
               ),
             ),
-          ),
-        ],
+          );
+
+          if (isNarrow) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    iconWidget,
+                    const SizedBox(width: 14),
+                    Expanded(child: titleWidget),
+                    refreshBtn,
+                  ],
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: double.infinity,
+                  child: exportBtn,
+                ),
+              ],
+            );
+          }
+
+          return Row(
+            children: [
+              iconWidget,
+              const SizedBox(width: 14),
+              Expanded(child: titleWidget),
+              refreshBtn,
+              const SizedBox(width: 4),
+              exportBtn,
+            ],
+          );
+        },
       ),
     );
   }

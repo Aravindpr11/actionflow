@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/app_file_picker_service.dart';
 import '../../../services/company_structure_service.dart';
+import '../../../services/document_service.dart';
 import '../../../services/user_service.dart';
 import '../../users/data/mock_people_store.dart';
 import '../../users/models/person.dart';
@@ -282,11 +283,26 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
   Future<void> _pickAttachments() async {
     try {
       final picked = await AppFilePicker.pickMultipleFiles(
-        allowedExtensions: ['pdf', 'png', 'jpg', 'jpeg', 'docx', 'xlsx', 'txt'],
+        allowedExtensions: const ['pdf', 'png', 'jpg', 'jpeg', 'webp', 'docx', 'xlsx', 'txt', 'csv'],
       );
       if (picked.isNotEmpty && mounted) {
+        final validFiles = <AppPickedFile>[];
+        for (final f in picked) {
+          final err = DocumentService.validateFile(fileName: f.name, fileSize: f.size);
+          if (err != null) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(err),
+                backgroundColor: const Color(0xFFDC2626),
+                behavior: SnackBarBehavior.floating,
+              ),
+            );
+            return;
+          }
+          validFiles.add(f);
+        }
         setState(() {
-          _selectedFiles.addAll(picked);
+          _selectedFiles.addAll(validFiles);
         });
       }
     } catch (e) {
@@ -328,7 +344,7 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
       'name': f.name,
       'bytes': f.bytes,
       'size': f.size,
-      'contentType': f.extension == 'pdf' ? 'application/pdf' : 'application/octet-stream',
+      'contentType': DocumentService.resolveMimeType(f.name),
     }).toList();
 
     try {
@@ -401,34 +417,39 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
                     // Header Bar
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'New Operational Request',
-                              style: TextStyle(
-                                fontSize: 22,
-                                fontWeight: FontWeight.bold,
-                                color: AppTheme.textPrimary(context),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'New Operational Request',
+                                style: TextStyle(
+                                  fontSize: isNarrow ? 18 : 22,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppTheme.textPrimary(context),
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Submit a request for PTW, equipment, materials, or site access.',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: AppTheme.textSecondary(context),
+                              const SizedBox(height: 4),
+                              Text(
+                                'Submit a request for PTW, equipment, materials, or site access.',
+                                style: TextStyle(
+                                  fontSize: 13,
+                                  color: AppTheme.textSecondary(context),
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                        if (widget.onCancel != null)
+                        if (widget.onCancel != null) ...[
+                          const SizedBox(width: 8),
                           TextButton.icon(
                             onPressed: _isSubmitting ? null : widget.onCancel,
                             icon: const Icon(Icons.arrow_back_rounded, size: 16),
                             label: const Text('Back'),
                           ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 20),
@@ -672,6 +693,64 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
                             ),
                             const SizedBox(height: 12),
                           ] else ...[
+                          if (isNarrow)
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                DropdownButtonFormField<Person>(
+                                  key: const Key('approver_selection_dropdown'),
+                                  value: (_pendingApproverSelection != null &&
+                                          _filteredEligibleApprovers.contains(_pendingApproverSelection))
+                                      ? _pendingApproverSelection
+                                      : null,
+                                  isExpanded: true,
+                                  hint: Text(
+                                    _approverSearchQuery.isNotEmpty
+                                        ? 'Select from matching approvers (${_filteredEligibleApprovers.length})'
+                                        : 'Select eligible manager or staff approver',
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Select Approver',
+                                    isDense: true,
+                                  ),
+                                  items: _filteredEligibleApprovers.map((u) {
+                                    final isAlreadyAdded = _designatedApprovers.any((a) => a.approverId == u.id);
+                                    return DropdownMenuItem<Person>(
+                                      value: u,
+                                      child: Text(
+                                        '${u.name} (${u.roleLabel} - ${u.department})${isAlreadyAdded ? " [Added]" : ""}',
+                                        overflow: TextOverflow.ellipsis,
+                                        style: TextStyle(
+                                          color: isAlreadyAdded
+                                              ? AppTheme.textSecondary(context)
+                                              : AppTheme.textPrimary(context),
+                                        ),
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: _isSubmitting
+                                      ? null
+                                      : (p) => setState(() => _pendingApproverSelection = p),
+                                ),
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton.icon(
+                                    key: const Key('add_approver_button'),
+                                    onPressed: _isSubmitting || _pendingApproverSelection == null ? null : _addApprover,
+                                    icon: const Icon(Icons.person_add_rounded, size: 16),
+                                    label: const Text('Add Approver'),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppTheme.primaryColor,
+                                      foregroundColor: Colors.white,
+                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            )
+                          else
                             Row(
                               children: [
                                 Expanded(
@@ -835,7 +914,10 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                          Wrap(
+                            spacing: 12,
+                            runSpacing: 8,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
                               ElevatedButton.icon(
                                 key: const Key('attach_files_button'),
@@ -848,9 +930,8 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
                                   side: BorderSide(color: AppTheme.cardBorder(context)),
                                 ),
                               ),
-                              const SizedBox(width: 12),
                               Text(
-                                'Supported: PDF, Images, Word, Excel (Max 25MB)',
+                                'Supported: PDF, Images, Word, Excel, CSV, TXT (Max 25MB)',
                                 style: TextStyle(fontSize: 12, color: AppTheme.textSecondary(context)),
                               ),
                             ],

@@ -6,6 +6,12 @@ abstract class SoundPlatform {
   /// Update user preference for notification sound.
   void setSoundEnabled(bool enabled);
 
+  /// Sound volume between 0.0 (silent) and 1.0 (full). Defaults to 0.8.
+  double get soundVolume;
+
+  /// Update user preference for sound volume.
+  void setSoundVolume(double volume);
+
   /// Play the notification sound tone.
   Future<void> playNotificationSound();
 

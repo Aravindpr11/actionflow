@@ -1000,70 +1000,71 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Bottom Actions Row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () => _openForwardDialog(req),
-                    icon: const Icon(Icons.forward_to_inbox_rounded, size: 16),
-                    label: const Text('Forward'),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                      visualDensity: VisualDensity.compact,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  if (req.canUserComplete(
-                    widget.currentUserId,
-                    isManager: widget.isManager,
-                    isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
-                    isScoped: widget.isManager,
-                  )) ...[
-                    ElevatedButton.icon(
-                      onPressed: () => _handleCompleteRequest(req),
-                      icon: const Icon(Icons.task_alt_rounded, size: 16),
-                      label: const Text('Mark Completed'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFF0284C7),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        visualDensity: VisualDensity.compact,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  if (req.canUserDelete(
-                    widget.currentUserId,
-                    isManager: widget.isManager,
-                    isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
-                    isScoped: widget.isManager,
-                  )) ...[
+              // Bottom Actions Row - Wrap gracefully for responsive mobile & desktop viewports
+              Align(
+                alignment: Alignment.centerRight,
+                child: Wrap(
+                  alignment: WrapAlignment.end,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
                     OutlinedButton.icon(
-                      key: Key('delete_my_request_${req.id}'),
-                      onPressed: () => _handleDeleteRequest(req),
-                      icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFDC2626)),
-                      label: const Text('Delete', style: TextStyle(color: Color(0xFFDC2626))),
+                      onPressed: () => _openForwardDialog(req),
+                      icon: const Icon(Icons.forward_to_inbox_rounded, size: 16),
+                      label: const Text('Forward'),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: Color(0xFFDC2626)),
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                         visualDensity: VisualDensity.compact,
                       ),
                     ),
-                    const SizedBox(width: 8),
-                  ],
-                  ElevatedButton.icon(
-                    onPressed: () => _openDetails(req),
-                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                    label: const Text('View Details'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppTheme.primaryColor,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      visualDensity: VisualDensity.compact,
+                    if (req.canUserComplete(
+                      widget.currentUserId,
+                      isManager: widget.isManager,
+                      isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+                      isScoped: widget.isManager,
+                    ))
+                      ElevatedButton.icon(
+                        onPressed: () => _handleCompleteRequest(req),
+                        icon: const Icon(Icons.task_alt_rounded, size: 16),
+                        label: const Text('Mark Completed'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: const Color(0xFF0284C7),
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    if (req.canUserDelete(
+                      widget.currentUserId,
+                      isManager: widget.isManager,
+                      isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+                      isScoped: widget.isManager,
+                    ))
+                      OutlinedButton.icon(
+                        key: Key('delete_my_request_${req.id}'),
+                        onPressed: () => _handleDeleteRequest(req),
+                        icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFDC2626)),
+                        label: const Text('Delete', style: TextStyle(color: Color(0xFFDC2626))),
+                        style: OutlinedButton.styleFrom(
+                          side: const BorderSide(color: Color(0xFFDC2626)),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                    ElevatedButton.icon(
+                      onPressed: () => _openDetails(req),
+                      icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                      label: const Text('View Details'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppTheme.primaryColor,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                        visualDensity: VisualDensity.compact,
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ],
           ),

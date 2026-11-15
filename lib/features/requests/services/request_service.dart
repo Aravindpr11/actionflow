@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/config/supabase_config.dart';
 import '../../../services/app_file_picker_service.dart';
+import '../../../services/document_service.dart';
 import '../../../services/notification_service.dart';
 import '../models/request_models.dart';
 
@@ -105,9 +106,20 @@ class RequestService {
         final name = att['name']?.toString() ?? 'attachment';
         final bytes = att['bytes'] as Uint8List?;
         final size = (att['size'] as num?)?.toInt() ?? bytes?.length ?? 0;
-        final contentType = att['contentType']?.toString() ?? 'application/octet-stream';
+        final rawContentType = att['contentType']?.toString();
+        final contentType = (rawContentType != null &&
+                rawContentType.isNotEmpty &&
+                rawContentType != 'application/octet-stream')
+            ? rawContentType
+            : DocumentService.resolveMimeType(name);
 
         if (bytes != null && bytes.isNotEmpty) {
+          // Validate file size and extension before upload
+          final valErr = DocumentService.validateFile(fileName: name, fileSize: size);
+          if (valErr != null) {
+            throw ArgumentError('Attachment "$name" validation failed: $valErr');
+          }
+
           final timestamp = DateTime.now().millisecondsSinceEpoch;
           final sanitizedName = name.replaceAll(RegExp(r'[^a-zA-Z0-9._-]'), '_');
           // Structured path adhering to storage policy: <verified_org_id>/requests/<timestamp>_<filename>
