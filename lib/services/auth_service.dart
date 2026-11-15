@@ -1111,8 +1111,10 @@ class AuthService {
         debugPrint('[AuthService] is_platform_admin() RPC note: $rpcErr');
       }
 
-      // Method B: Fallback direct query on public.platform_admins if RPC did not verify
-      if (!isPlatformAdmin) {
+      // Method B: Fallback direct query on public.platform_admins ONLY if RPC errored/failed
+      // If the RPC succeeded and returned false, the user is authoritatively NOT a platform admin,
+      // and querying public.platform_admins directly would trigger an intentional RLS 403 Forbidden.
+      if (!isPlatformAdmin && platformAdminRpcError != null) {
         try {
           final dynamic platformAdminRow = await client
               .from('platform_admins')
@@ -1452,16 +1454,20 @@ class AuthService {
     }
 
     bool verified = false;
+    Object? rpcError;
     try {
       final dynamic rpcResult = await client.rpc('is_platform_admin');
       if (rpcResult == true) {
         verified = true;
       }
     } catch (e) {
+      rpcError = e;
       debugPrint('[AuthService] verifyPlatformAdminAuthority RPC note: $e');
     }
 
-    if (!verified) {
+    // Only fallback if the RPC threw an unexpected exception; if it returned false without error,
+    // the user is authoritatively not a platform admin and querying platform_admins would trigger RLS 403.
+    if (!verified && rpcError != null) {
       try {
         final dynamic row = await client
             .from('platform_admins')

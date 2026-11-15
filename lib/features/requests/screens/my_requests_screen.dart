@@ -1009,71 +1009,118 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
               ),
               const SizedBox(height: 12),
 
-              // Bottom Actions Row - Wrap gracefully for responsive mobile & desktop viewports
-              Align(
-                alignment: Alignment.centerRight,
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _openForwardDialog(req),
-                      icon: const Icon(Icons.forward_to_inbox_rounded, size: 16),
-                      label: const Text('Forward'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        visualDensity: VisualDensity.compact,
-                      ),
+              // Bottom Actions Row - Adaptive layout with >=44px touch targets on mobile & desktop
+              LayoutBuilder(
+                builder: (context, cardConstraints) {
+                  final isCardNarrow = cardConstraints.maxWidth < 480;
+
+                  final forwardBtn = OutlinedButton.icon(
+                    onPressed: () => _openForwardDialog(req),
+                    icon: const Icon(Icons.forward_to_inbox_rounded, size: 16),
+                    label: const Text('Forward'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      minimumSize: const Size(0, 44),
                     ),
-                    if (req.canUserComplete(
-                      widget.currentUserId,
-                      isManager: widget.isManager,
-                      isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
-                      isScoped: widget.isManager,
-                    ))
-                      ElevatedButton.icon(
-                        onPressed: () => _handleCompleteRequest(req),
-                        icon: const Icon(Icons.task_alt_rounded, size: 16),
-                        label: const Text('Mark Completed'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF0284C7),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                    if (req.canUserDelete(
-                      widget.currentUserId,
-                      isManager: widget.isManager,
-                      isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
-                      isScoped: widget.isManager,
-                    ))
-                      OutlinedButton.icon(
-                        key: Key('delete_my_request_${req.id}'),
-                        onPressed: () => _handleDeleteRequest(req),
-                        icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFDC2626)),
-                        label: const Text('Delete', style: TextStyle(color: Color(0xFFDC2626))),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFDC2626)),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                    ElevatedButton.icon(
-                      onPressed: () => _openDetails(req),
-                      icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                      label: const Text('View Details'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        visualDensity: VisualDensity.compact,
-                      ),
+                  );
+
+                  final completeBtn = req.canUserComplete(
+                    widget.currentUserId,
+                    isManager: widget.isManager,
+                    isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+                    isScoped: widget.isManager,
+                  )
+                      ? ElevatedButton.icon(
+                          onPressed: () => _handleCompleteRequest(req),
+                          icon: const Icon(Icons.task_alt_rounded, size: 16),
+                          label: const Text('Mark Completed'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF0284C7),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            minimumSize: const Size(0, 44),
+                          ),
+                        )
+                      : null;
+
+                  final deleteBtn = req.canUserDelete(
+                    widget.currentUserId,
+                    isManager: widget.isManager,
+                    isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+                    isScoped: widget.isManager,
+                  )
+                      ? OutlinedButton.icon(
+                          key: Key('delete_my_request_${req.id}'),
+                          onPressed: () => _handleDeleteRequest(req),
+                          icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFDC2626)),
+                          label: const Text('Delete', style: TextStyle(color: Color(0xFFDC2626))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFDC2626)),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            minimumSize: const Size(0, 44),
+                          ),
+                        )
+                      : null;
+
+                  final detailsBtn = ElevatedButton.icon(
+                    onPressed: () => _openDetails(req),
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                    label: const Text('View Details'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      minimumSize: const Size(0, 44),
                     ),
-                  ],
-                ),
+                  );
+
+                  if (isCardNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        Row(
+                          children: [
+                            Expanded(child: forwardBtn),
+                            const SizedBox(width: 8),
+                            Expanded(child: detailsBtn),
+                          ],
+                        ),
+                        if (completeBtn != null && deleteBtn != null) ...[
+                          const SizedBox(height: 8),
+                          Row(
+                            children: [
+                              Expanded(child: completeBtn),
+                              const SizedBox(width: 8),
+                              Expanded(child: deleteBtn),
+                            ],
+                          ),
+                        ] else if (completeBtn != null) ...[
+                          const SizedBox(height: 8),
+                          SizedBox(width: double.infinity, child: completeBtn),
+                        ] else if (deleteBtn != null) ...[
+                          const SizedBox(height: 8),
+                          SizedBox(width: double.infinity, child: deleteBtn),
+                        ],
+                      ],
+                    );
+                  }
+
+                  return Align(
+                    alignment: Alignment.centerRight,
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        forwardBtn,
+                        if (completeBtn != null) completeBtn,
+                        if (deleteBtn != null) deleteBtn,
+                        detailsBtn,
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
           ),

@@ -3250,7 +3250,11 @@ class ActionService {
     }
 
     // Validate file size and format against 25MB ceiling and supported extensions
-    final valErr = DocumentService.validateFile(fileName: cleanFile, fileSize: bytes.length);
+    final valErr = DocumentService.validateFile(
+      fileName: cleanFile,
+      fileSize: bytes.length,
+      fileBytes: bytes,
+    );
     if (valErr != null) {
       return (success: false, error: valErr, updatedAction: null);
     }

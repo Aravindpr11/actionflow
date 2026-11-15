@@ -281,8 +281,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
                           horizontal: 16,
                           vertical: 12,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               'Digest Dispatch Frequency',
@@ -292,26 +292,27 @@ class _SettingsScreenState extends State<SettingsScreen> {
                                 color: AppTheme.textPrimary(context),
                               ),
                             ),
+                            const SizedBox(height: 6),
                             DropdownButton<String>(
+                              isExpanded: true,
                               value: _digestFrequency,
                               dropdownColor: AppTheme.cardBg(context),
                               style: TextStyle(
                                 fontSize: 12.5,
                                 color: AppTheme.textPrimary(context),
                               ),
-                              items:
-                                  [
-                                        'Daily Morning Digest',
-                                        'Weekly Monday Summary',
-                                        'Bi-Weekly Compliance Digest',
-                                      ]
-                                      .map(
-                                        (f) => DropdownMenuItem(
-                                          value: f,
-                                          child: Text(f),
-                                        ),
-                                      )
-                                      .toList(),
+                              items: [
+                                'Daily Morning Digest',
+                                'Weekly Monday Summary',
+                                'Bi-Weekly Compliance Digest',
+                              ]
+                                  .map(
+                                    (f) => DropdownMenuItem(
+                                      value: f,
+                                      child: Text(f),
+                                    ),
+                                  )
+                                  .toList(),
                               onChanged: (val) {
                                 if (val != null) {
                                   setState(() => _digestFrequency = val);
@@ -606,12 +607,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
           children: [
             Icon(icon, color: AppTheme.primaryAccent(context), size: 22),
             const SizedBox(width: 10),
-            Text(
-              title,
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.bold,
-                color: AppTheme.textPrimary(context),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.bold,
+                  color: AppTheme.textPrimary(context),
+                ),
               ),
             ),
           ],

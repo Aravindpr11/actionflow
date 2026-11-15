@@ -288,7 +288,11 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
       if (picked.isNotEmpty && mounted) {
         final validFiles = <AppPickedFile>[];
         for (final f in picked) {
-          final err = DocumentService.validateFile(fileName: f.name, fileSize: f.size);
+          final err = DocumentService.validateFile(
+            fileName: f.name,
+            fileSize: f.size,
+            fileBytes: f.bytes,
+          );
           if (err != null) {
             ScaffoldMessenger.of(context).showSnackBar(
               SnackBar(

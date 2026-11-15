@@ -27,6 +27,13 @@ import 'package:action_flow/models/organization.dart';
 import 'package:action_flow/services/auth_service.dart';
 import 'package:action_flow/features/users/models/team.dart';
 import 'package:action_flow/services/notification_service.dart';
+import 'package:action_flow/features/auth/screens/forgot_password_screen.dart';
+import 'package:action_flow/features/auth/screens/account_type_selection_screen.dart';
+import 'package:action_flow/features/auth/screens/signup_screen.dart';
+import 'package:action_flow/features/settings/screens/settings_screen.dart';
+import 'package:action_flow/features/users/screens/users_screen.dart';
+import 'package:action_flow/features/dashboard/worker_dashboard/screens/worker_action_update_screen.dart';
+import 'package:action_flow/features/dashboard/manager_dashboard/screens/manager_action_update_screen.dart';
 
 void main() {
   const artifactDir = r'C:\Users\aravi\.gemini\antigravity\brain\157d46af-d639-42a1-a30f-5e6c77727b23';
@@ -165,8 +172,8 @@ void main() {
     });
   }
 
-  // Exact viewports mandated by Task 2
-  final mobileWidths = [320.0, 360.0, 375.0, 390.0, 414.0, 430.0, 480.0];
+  // Exact viewports mandated by Task 2 plus 393px mobile target
+  final mobileWidths = [320.0, 360.0, 375.0, 390.0, 393.0, 414.0, 430.0, 480.0];
   final tabletWidths = [600.0, 768.0, 820.0, 1024.0];
   final desktopWidths = [1024.0, 1280.0, 1366.0, 1440.0, 1600.0, 1920.0];
 
@@ -246,6 +253,8 @@ void main() {
 
         if (w == 360.0) {
           await saveScreenshot(tester, key, 'screen_my_requests_mobile.png');
+        } else if (w == 393.0) {
+          await saveScreenshot(tester, key, 'screen_my_requests_393.png');
         } else if (w == 768.0) {
           await saveScreenshot(tester, key, 'screen_my_requests_tablet.png');
         } else if (w == 1280.0) {
@@ -294,6 +303,8 @@ void main() {
 
         if (w == 360.0) {
           await saveScreenshot(tester, key, 'screen_request_approval_mobile.png');
+        } else if (w == 393.0) {
+          await saveScreenshot(tester, key, 'screen_request_approval_393.png');
         } else if (w == 768.0) {
           await saveScreenshot(tester, key, 'screen_request_approval_tablet.png');
         } else if (w == 1280.0) {
@@ -600,6 +611,247 @@ void main() {
           await saveScreenshot(tester, key, 'dialog_forward_request_mobile.png');
         } else if (w == 1280.0) {
           await saveScreenshot(tester, key, 'dialog_forward_request_desktop.png');
+        }
+      }
+    });
+
+    testWidgets('12. ForgotPasswordScreen across Mobile, Tablet, Desktop', (tester) async {
+      final allWidths = [...mobileWidths, ...tabletWidths, ...desktopWidths];
+      for (final w in allWidths) {
+        tester.view.physicalSize = Size(w, 900);
+        tester.view.devicePixelRatio = 1.0;
+        final key = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: RepaintBoundary(
+              key: key,
+              child: const ForgotPasswordScreen(),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(tester.takeException(), isNull, reason: 'ForgotPasswordScreen overflow at width $w');
+
+        if (w == 360.0) {
+          await saveScreenshot(tester, key, 'screen_forgot_password_mobile.png');
+        } else if (w == 393.0) {
+          await saveScreenshot(tester, key, 'screen_forgot_password_393.png');
+        } else if (w == 768.0) {
+          await saveScreenshot(tester, key, 'screen_forgot_password_tablet.png');
+        } else if (w == 1280.0) {
+          await saveScreenshot(tester, key, 'screen_forgot_password_desktop.png');
+        }
+      }
+    });
+
+    testWidgets('13. AccountTypeSelectionScreen across Mobile, Tablet, Desktop', (tester) async {
+      final allWidths = [...mobileWidths, ...tabletWidths, ...desktopWidths];
+      for (final w in allWidths) {
+        tester.view.physicalSize = Size(w, 900);
+        tester.view.devicePixelRatio = 1.0;
+        final key = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: RepaintBoundary(
+              key: key,
+              child: const AccountTypeSelectionScreen(),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(tester.takeException(), isNull, reason: 'AccountTypeSelectionScreen overflow at width $w');
+
+        if (w == 360.0) {
+          await saveScreenshot(tester, key, 'screen_account_type_selection_mobile.png');
+        } else if (w == 393.0) {
+          await saveScreenshot(tester, key, 'screen_account_type_selection_393.png');
+        } else if (w == 768.0) {
+          await saveScreenshot(tester, key, 'screen_account_type_selection_tablet.png');
+        } else if (w == 1280.0) {
+          await saveScreenshot(tester, key, 'screen_account_type_selection_desktop.png');
+        }
+      }
+    });
+
+    testWidgets('14. SignupScreen across Mobile, Tablet, Desktop', (tester) async {
+      final allWidths = [...mobileWidths, ...tabletWidths, ...desktopWidths];
+      for (final w in allWidths) {
+        tester.view.physicalSize = Size(w, 900);
+        tester.view.devicePixelRatio = 1.0;
+        final key = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: RepaintBoundary(
+              key: key,
+              child: const SignupScreen(),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(tester.takeException(), isNull, reason: 'SignupScreen overflow at width $w');
+
+        if (w == 360.0) {
+          await saveScreenshot(tester, key, 'screen_signup_mobile.png');
+        } else if (w == 393.0) {
+          await saveScreenshot(tester, key, 'screen_signup_393.png');
+        } else if (w == 768.0) {
+          await saveScreenshot(tester, key, 'screen_signup_tablet.png');
+        } else if (w == 1280.0) {
+          await saveScreenshot(tester, key, 'screen_signup_desktop.png');
+        }
+      }
+    });
+
+    testWidgets('15. SettingsScreen across Mobile, Tablet, Desktop', (tester) async {
+      final allWidths = [...mobileWidths, ...tabletWidths, ...desktopWidths];
+      for (final w in allWidths) {
+        tester.view.physicalSize = Size(w, 900);
+        tester.view.devicePixelRatio = 1.0;
+        final key = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: RepaintBoundary(
+              key: key,
+              child: const SettingsScreen(),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(tester.takeException(), isNull, reason: 'SettingsScreen overflow at width $w');
+
+        if (w == 360.0) {
+          await saveScreenshot(tester, key, 'screen_settings_mobile.png');
+        } else if (w == 393.0) {
+          await saveScreenshot(tester, key, 'screen_settings_393.png');
+        } else if (w == 768.0) {
+          await saveScreenshot(tester, key, 'screen_settings_tablet.png');
+        } else if (w == 1280.0) {
+          await saveScreenshot(tester, key, 'screen_settings_desktop.png');
+        }
+      }
+    });
+
+    testWidgets('16. UsersScreen across Mobile, Tablet, Desktop', (tester) async {
+      final allWidths = [...mobileWidths, ...tabletWidths, ...desktopWidths];
+      for (final w in allWidths) {
+        tester.view.physicalSize = Size(w, 900);
+        tester.view.devicePixelRatio = 1.0;
+        final key = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: RepaintBoundary(
+              key: key,
+              child: const UsersScreen(),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(tester.takeException(), isNull, reason: 'UsersScreen overflow at width $w');
+
+        if (w == 360.0) {
+          await saveScreenshot(tester, key, 'screen_users_mobile.png');
+        } else if (w == 393.0) {
+          await saveScreenshot(tester, key, 'screen_users_393.png');
+        } else if (w == 768.0) {
+          await saveScreenshot(tester, key, 'screen_users_tablet.png');
+        } else if (w == 1280.0) {
+          await saveScreenshot(tester, key, 'screen_users_desktop.png');
+        }
+      }
+    });
+
+    testWidgets('17. WorkerActionUpdateScreen across Mobile, Tablet, Desktop', (tester) async {
+      final allWidths = [...mobileWidths, ...tabletWidths, ...desktopWidths];
+      for (final w in allWidths) {
+        tester.view.physicalSize = Size(w, 900);
+        tester.view.devicePixelRatio = 1.0;
+        final key = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: RepaintBoundary(
+              key: key,
+              child: WorkerActionUpdateScreen(
+                action: testAction,
+                currentUserId: testUserId,
+                currentUserName: testUserName,
+                currentUserEmail: testUserEmail,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(tester.takeException(), isNull, reason: 'WorkerActionUpdateScreen overflow at width $w');
+
+        if (w == 360.0) {
+          await saveScreenshot(tester, key, 'screen_worker_action_update_mobile.png');
+        } else if (w == 393.0) {
+          await saveScreenshot(tester, key, 'screen_worker_action_update_393.png');
+        } else if (w == 768.0) {
+          await saveScreenshot(tester, key, 'screen_worker_action_update_tablet.png');
+        } else if (w == 1280.0) {
+          await saveScreenshot(tester, key, 'screen_worker_action_update_desktop.png');
+        }
+      }
+    });
+
+    testWidgets('18. ManagerActionUpdateScreen across Mobile, Tablet, Desktop', (tester) async {
+      final allWidths = [...mobileWidths, ...tabletWidths, ...desktopWidths];
+      for (final w in allWidths) {
+        tester.view.physicalSize = Size(w, 900);
+        tester.view.devicePixelRatio = 1.0;
+        final key = GlobalKey();
+
+        await tester.pumpWidget(
+          MaterialApp(
+            debugShowCheckedModeBanner: false,
+            home: RepaintBoundary(
+              key: key,
+              child: ManagerActionUpdateScreen(
+                action: testAction,
+                currentUserId: testUserId,
+                currentUserName: testUserName,
+                currentUserEmail: testUserEmail,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 300));
+
+        expect(tester.takeException(), isNull, reason: 'ManagerActionUpdateScreen overflow at width $w');
+
+        if (w == 360.0) {
+          await saveScreenshot(tester, key, 'screen_manager_action_update_mobile.png');
+        } else if (w == 393.0) {
+          await saveScreenshot(tester, key, 'screen_manager_action_update_393.png');
+        } else if (w == 768.0) {
+          await saveScreenshot(tester, key, 'screen_manager_action_update_tablet.png');
+        } else if (w == 1280.0) {
+          await saveScreenshot(tester, key, 'screen_manager_action_update_desktop.png');
         }
       }
     });

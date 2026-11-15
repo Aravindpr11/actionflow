@@ -1377,77 +1377,125 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
               ),
               const SizedBox(height: 14),
 
-              // Action Buttons Row - Wrap gracefully for responsive mobile & desktop viewports
-              Align(
-                alignment: Alignment.centerRight,
-                child: Wrap(
-                  alignment: WrapAlignment.end,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    OutlinedButton.icon(
-                      onPressed: () => _openForwardDialog(req),
-                      icon: const Icon(Icons.forward_to_inbox_rounded, size: 16),
-                      label: const Text('Forward'),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                        visualDensity: VisualDensity.compact,
-                      ),
+              // Action Buttons Row - Adaptive layout with >=44px touch targets on mobile & desktop
+              LayoutBuilder(
+                builder: (context, cardConstraints) {
+                  final isCardNarrow = cardConstraints.maxWidth < 480;
+
+                  final forwardBtn = OutlinedButton.icon(
+                    onPressed: () => _openForwardDialog(req),
+                    icon: const Icon(Icons.forward_to_inbox_rounded, size: 16),
+                    label: const Text('Forward'),
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      minimumSize: const Size(0, 44),
                     ),
-                    if (canIApprove) ...[
-                      OutlinedButton.icon(
-                        onPressed: () => _handleReject(req),
-                        icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
-                        label: const Text('Reject', style: TextStyle(color: Color(0xFFDC2626))),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFDC2626)),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                      ElevatedButton.icon(
-                        onPressed: () => _handleApprove(req),
-                        icon: const Icon(Icons.check_rounded, size: 16),
-                        label: const Text('Approve'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF16A34A),
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                    ],
-                    if (req.canUserDelete(
-                      widget.currentUserId,
-                      isManager: widget.isManager,
-                      isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
-                      isScoped: widget.isManager,
-                    ))
-                      OutlinedButton.icon(
-                        key: Key('delete_request_${req.id}'),
-                        onPressed: () => _handleDeleteRequest(req),
-                        icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFDC2626)),
-                        label: const Text('Delete', style: TextStyle(color: Color(0xFFDC2626))),
-                        style: OutlinedButton.styleFrom(
-                          side: const BorderSide(color: Color(0xFFDC2626)),
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                          visualDensity: VisualDensity.compact,
-                        ),
-                      ),
-                    ElevatedButton.icon(
-                      onPressed: () => _openDetails(req),
-                      icon: const Icon(Icons.arrow_forward_rounded, size: 16),
-                      label: const Text('Details'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppTheme.primaryColor,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                        visualDensity: VisualDensity.compact,
-                      ),
+                  );
+
+                  final rejectBtn = canIApprove
+                      ? OutlinedButton.icon(
+                          onPressed: () => _handleReject(req),
+                          icon: const Icon(Icons.cancel_outlined, size: 16, color: Color(0xFFDC2626)),
+                          label: const Text('Reject', style: TextStyle(color: Color(0xFFDC2626))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFDC2626)),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            minimumSize: const Size(0, 44),
+                          ),
+                        )
+                      : null;
+
+                  final approveBtn = canIApprove
+                      ? ElevatedButton.icon(
+                          onPressed: () => _handleApprove(req),
+                          icon: const Icon(Icons.check_rounded, size: 16),
+                          label: const Text('Approve'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: const Color(0xFF16A34A),
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                            minimumSize: const Size(0, 44),
+                          ),
+                        )
+                      : null;
+
+                  final deleteBtn = req.canUserDelete(
+                    widget.currentUserId,
+                    isManager: widget.isManager,
+                    isCompanyAdmin: widget.currentUserRole.toLowerCase().contains('admin'),
+                    isScoped: widget.isManager,
+                  )
+                      ? OutlinedButton.icon(
+                          key: Key('delete_request_${req.id}'),
+                          onPressed: () => _handleDeleteRequest(req),
+                          icon: const Icon(Icons.delete_outline_rounded, size: 16, color: Color(0xFFDC2626)),
+                          label: const Text('Delete', style: TextStyle(color: Color(0xFFDC2626))),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Color(0xFFDC2626)),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            minimumSize: const Size(0, 44),
+                          ),
+                        )
+                      : null;
+
+                  final detailsBtn = ElevatedButton.icon(
+                    onPressed: () => _openDetails(req),
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 16),
+                    label: const Text('Details'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppTheme.primaryColor,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      minimumSize: const Size(0, 44),
                     ),
-                  ],
-                ),
+                  );
+
+                  if (isCardNarrow) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        if (canIApprove) ...[
+                          Row(
+                            children: [
+                              Expanded(child: approveBtn!),
+                              const SizedBox(width: 8),
+                              Expanded(child: rejectBtn!),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                        ],
+                        Row(
+                          children: [
+                            Expanded(child: forwardBtn),
+                            const SizedBox(width: 8),
+                            Expanded(child: detailsBtn),
+                          ],
+                        ),
+                        if (deleteBtn != null) ...[
+                          const SizedBox(height: 8),
+                          SizedBox(width: double.infinity, child: deleteBtn),
+                        ],
+                      ],
+                    );
+                  }
+
+                  return Align(
+                    alignment: Alignment.centerRight,
+                    child: Wrap(
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: [
+                        forwardBtn,
+                        if (rejectBtn != null) rejectBtn,
+                        if (approveBtn != null) approveBtn,
+                        if (deleteBtn != null) deleteBtn,
+                        detailsBtn,
+                      ],
+                    ),
+                  );
+                },
               ),
             ],
           ),

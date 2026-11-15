@@ -335,10 +335,11 @@ class DocumentService {
     'txt',
   };
 
-  /// Validates file type and size. Returns null if valid, or an error string if invalid.
+  /// Validates file type, size, and optional magic-byte content. Returns null if valid, or an error string if invalid.
   static String? validateFile({
     required String fileName,
     required int fileSize,
+    List<int>? fileBytes,
   }) {
     if (fileName.trim().isEmpty) {
       return 'File name cannot be empty.';
@@ -360,6 +361,76 @@ class DocumentService {
 
     if (fileSize > maxFileSize) {
       return 'File size (${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB) exceeds the maximum allowed limit of 25 MB.';
+    }
+
+    // Magic-byte signature verification when file content is available
+    if (fileBytes != null && fileBytes.isNotEmpty) {
+      // 1. Blacklist check: Executable binaries (MZ for Windows PE, ELF for Linux, Mach-O for Mac)
+      if (fileBytes.length >= 2 && fileBytes[0] == 0x4D && fileBytes[1] == 0x5A) {
+        return 'Security Violation: Executable file disguised as .$ext is not permitted.';
+      }
+      if (fileBytes.length >= 4 &&
+          fileBytes[0] == 0x7F &&
+          fileBytes[1] == 0x45 &&
+          fileBytes[2] == 0x4C &&
+          fileBytes[3] == 0x46) {
+        return 'Security Violation: Executable ELF binary disguised as .$ext is not permitted.';
+      }
+
+      // 2. Specific format magic byte validation
+      switch (ext) {
+        case 'pdf':
+          // PDF must start with %PDF (0x25, 0x50, 0x44, 0x46)
+          if (fileBytes.length < 4 ||
+              fileBytes[0] != 0x25 ||
+              fileBytes[1] != 0x50 ||
+              fileBytes[2] != 0x44 ||
+              fileBytes[3] != 0x46) {
+            return 'File validation error: Content does not match expected PDF signature.';
+          }
+          break;
+        case 'png':
+          // PNG magic: 0x89, 0x50, 0x4E, 0x47
+          if (fileBytes.length < 4 ||
+              fileBytes[0] != 0x89 ||
+              fileBytes[1] != 0x50 ||
+              fileBytes[2] != 0x4E ||
+              fileBytes[3] != 0x47) {
+            return 'File validation error: Content does not match expected PNG signature.';
+          }
+          break;
+        case 'jpg':
+        case 'jpeg':
+          // JPEG magic: 0xFF, 0xD8, 0xFF
+          if (fileBytes.length < 3 ||
+              fileBytes[0] != 0xFF ||
+              fileBytes[1] != 0xD8 ||
+              fileBytes[2] != 0xFF) {
+            return 'File validation error: Content does not match expected JPEG signature.';
+          }
+          break;
+        case 'webp':
+          // WebP magic: 'RIFF' at 0..3
+          if (fileBytes.length < 4 ||
+              fileBytes[0] != 0x52 ||
+              fileBytes[1] != 0x49 ||
+              fileBytes[2] != 0x46 ||
+              fileBytes[3] != 0x46) {
+            return 'File validation error: Content does not match expected WEBP signature.';
+          }
+          break;
+        case 'docx':
+        case 'xlsx':
+          // Modern Office OpenXML is a ZIP container: 'PK\x03\x04' (0x50, 0x4B, 0x03, 0x04)
+          if (fileBytes.length < 4 ||
+              fileBytes[0] != 0x50 ||
+              fileBytes[1] != 0x4B ||
+              fileBytes[2] != 0x03 ||
+              fileBytes[3] != 0x04) {
+            return 'File validation error: Content does not match expected Office OpenXML signature.';
+          }
+          break;
+      }
     }
 
     return null;
@@ -671,7 +742,11 @@ class DocumentService {
     required String userName,
   }) async {
     // 1. Strict Validation
-    final validationError = validateFile(fileName: fileName, fileSize: fileBytes.length);
+    final validationError = validateFile(
+      fileName: fileName,
+      fileSize: fileBytes.length,
+      fileBytes: fileBytes,
+    );
     if (validationError != null) {
       throw ArgumentError(validationError);
     }

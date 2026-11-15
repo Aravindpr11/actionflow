@@ -115,7 +115,11 @@ class RequestService {
 
         if (bytes != null && bytes.isNotEmpty) {
           // Validate file size and extension before upload
-          final valErr = DocumentService.validateFile(fileName: name, fileSize: size);
+          final valErr = DocumentService.validateFile(
+            fileName: name,
+            fileSize: size,
+            fileBytes: bytes,
+          );
           if (valErr != null) {
             throw ArgumentError('Attachment "$name" validation failed: $valErr');
           }

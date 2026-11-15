@@ -33,11 +33,19 @@ void main() {
 
     test('validateFile enforces 25MB ceiling and whitelist correctly', () {
       // Valid cases
-      expect(DocumentService.validateFile(fileName: 'invoice.pdf', fileSize: 1024), isNull);
+      expect(
+        DocumentService.validateFile(
+          fileName: 'invoice.pdf',
+          fileSize: 1024,
+          fileBytes: [0x25, 0x50, 0x44, 0x46, 0x2D, 0x31, 0x2E, 0x35],
+        ),
+        isNull,
+      );
       expect(
         DocumentService.validateFile(
           fileName: 'photo.png',
           fileSize: 25 * 1024 * 1024, // Exactly 25 MB
+          fileBytes: [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
         ),
         isNull,
       );
@@ -63,6 +71,57 @@ void main() {
           fileSize: (25 * 1024 * 1024) + 1,
         ),
         contains('exceeds the maximum allowed limit of 25 MB'),
+      );
+    });
+
+    test('validateFile inspects magic-bytes and rejects disguised executables and corrupt content', () {
+      // Disguised Windows PE Executable (MZ header renamed to .pdf)
+      final disguisedExeBytes = [0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00, 0x00, 0x00];
+      final exeResult = DocumentService.validateFile(
+        fileName: 'safety_report.pdf',
+        fileSize: disguisedExeBytes.length,
+        fileBytes: disguisedExeBytes,
+      );
+      expect(exeResult, contains('Security Violation: Executable file disguised'));
+
+      // Disguised Linux ELF Binary (ELF header renamed to .png)
+      final disguisedElfBytes = [0x7F, 0x45, 0x4C, 0x46, 0x02, 0x01, 0x01, 0x00];
+      final elfResult = DocumentService.validateFile(
+        fileName: 'badge_photo.png',
+        fileSize: disguisedElfBytes.length,
+        fileBytes: disguisedElfBytes,
+      );
+      expect(elfResult, contains('Security Violation: Executable ELF binary disguised'));
+
+      // Mismatched / corrupt PDF signature (plain text in .pdf)
+      final corruptPdfBytes = [0x48, 0x65, 0x6C, 0x6C, 0x6F, 0x20, 0x57, 0x6F];
+      final corruptResult = DocumentService.validateFile(
+        fileName: 'corrupt.pdf',
+        fileSize: corruptPdfBytes.length,
+        fileBytes: corruptPdfBytes,
+      );
+      expect(corruptResult, contains('Content does not match expected PDF signature'));
+
+      // Valid JPEG header
+      final validJpgBytes = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10];
+      expect(
+        DocumentService.validateFile(
+          fileName: 'site_photo.jpg',
+          fileSize: validJpgBytes.length,
+          fileBytes: validJpgBytes,
+        ),
+        isNull,
+      );
+
+      // Valid Office OpenXML (.xlsx / .docx) PK zip header
+      final validOfficeBytes = [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00];
+      expect(
+        DocumentService.validateFile(
+          fileName: 'audit.xlsx',
+          fileSize: validOfficeBytes.length,
+          fileBytes: validOfficeBytes,
+        ),
+        isNull,
       );
     });
   });
