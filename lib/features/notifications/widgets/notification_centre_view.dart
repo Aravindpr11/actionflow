@@ -183,139 +183,170 @@ class _NotificationCentreViewState extends State<NotificationCentreView> {
         mainAxisSize: MainAxisSize.min,
         children: [
           // Header Row
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF1565C0).withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: const Icon(
-                  Icons.notifications_rounded,
-                  color: Color(0xFF1565C0),
-                  size: 22,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Wrap(
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      spacing: 10,
-                      runSpacing: 4,
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final isCompact = constraints.maxWidth < 620;
+
+              final titleSection = Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1565C0).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(
+                      Icons.notifications_rounded,
+                      color: Color(0xFF1565C0),
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
+                        Wrap(
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          spacing: 10,
+                          runSpacing: 4,
+                          children: [
+                            Text(
+                              widget.title,
+                              style: TextStyle(
+                                fontSize: 19,
+                                fontWeight: FontWeight.bold,
+                                color: AppTheme.textPrimary(context),
+                              ),
+                            ),
+                            if (_unreadCount > 0)
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 8,
+                                  vertical: 2,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFFDC2626).withValues(alpha: 0.12),
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(
+                                    color: const Color(0xFFDC2626).withValues(alpha: 0.3),
+                                  ),
+                                ),
+                                child: Text(
+                                  '$_unreadCount Unread',
+                                  style: const TextStyle(
+                                    color: Color(0xFFDC2626),
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
+                        const SizedBox(height: 3),
                         Text(
-                          widget.title,
+                          widget.subtitle ??
+                              'Real-time alerts, safety escalations, and action reminders.',
                           style: TextStyle(
-                            fontSize: 19,
-                            fontWeight: FontWeight.bold,
-                            color: AppTheme.textPrimary(context),
+                            fontSize: 12.5,
+                            color: AppTheme.textSecondary(context),
                           ),
                         ),
-                        if (_unreadCount > 0)
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 8,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFDC2626).withValues(alpha: 0.12),
-                              borderRadius: BorderRadius.circular(12),
-                              border: Border.all(
-                                color: const Color(0xFFDC2626).withValues(alpha: 0.3),
-                              ),
-                            ),
-                            child: Text(
-                              '$_unreadCount Unread',
-                              style: const TextStyle(
-                                color: Color(0xFFDC2626),
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
                       ],
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      widget.subtitle ??
-                          'Real-time alerts, safety escalations, and action reminders.',
+                  ),
+                ],
+              );
+
+              final actionButtons = Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: [
+                  if (BrowserNotificationService.instance.isSupported)
+                    _buildBrowserNotificationButton(context),
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      setState(() {
+                        SoundService.instance.toggleSound();
+                      });
+                    },
+                    icon: Icon(
+                      SoundService.instance.isSoundEnabled
+                          ? Icons.volume_up_rounded
+                          : Icons.volume_off_rounded,
+                      size: 15,
+                      color: SoundService.instance.isSoundEnabled
+                          ? const Color(0xFF1565C0)
+                          : AppTheme.textSecondary(context),
+                    ),
+                    label: Text(
+                      SoundService.instance.isSoundEnabled ? 'Sound ON' : 'Muted',
                       style: TextStyle(
-                        fontSize: 12.5,
-                        color: AppTheme.textSecondary(context),
+                        fontSize: 11.5,
+                        color: SoundService.instance.isSoundEnabled
+                            ? const Color(0xFF1565C0)
+                            : AppTheme.textSecondary(context),
                       ),
                     ),
-                  ],
-                ),
-              ),
-              // Browser Desktop Notifications Button
-              if (BrowserNotificationService.instance.isSupported) ...[
-                _buildBrowserNotificationButton(context),
-                const SizedBox(width: 8),
-              ],
-              // Sound Toggle Button
-              OutlinedButton.icon(
-                onPressed: () {
-                  setState(() {
-                    SoundService.instance.toggleSound();
-                  });
-                },
-                icon: Icon(
-                  SoundService.instance.isSoundEnabled
-                      ? Icons.volume_up_rounded
-                      : Icons.volume_off_rounded,
-                  size: 15,
-                  color: SoundService.instance.isSoundEnabled
-                      ? const Color(0xFF1565C0)
-                      : AppTheme.textSecondary(context),
-                ),
-                label: Text(
-                  SoundService.instance.isSoundEnabled ? 'Sound ON' : 'Muted',
-                  style: TextStyle(
-                    fontSize: 11.5,
-                    color: SoundService.instance.isSoundEnabled
-                        ? const Color(0xFF1565C0)
-                        : AppTheme.textSecondary(context),
-                  ),
-                ),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                  side: BorderSide(
-                    color: SoundService.instance.isSoundEnabled
-                        ? const Color(0xFF1565C0).withOpacity(0.4)
-                        : AppTheme.cardBorder(context),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              // Mark all as read button
-              if (_unreadCount > 0)
-                TextButton.icon(
-                  onPressed: _handleMarkAllAsRead,
-                  icon: const Icon(Icons.done_all_rounded, size: 16),
-                  label: const Text(
-                    'Mark all read',
-                    style: TextStyle(fontSize: 12),
-                  ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: const Color(0xFF1565C0),
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 8,
+                    style: OutlinedButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                      side: BorderSide(
+                        color: SoundService.instance.isSoundEnabled
+                            ? const Color(0xFF1565C0).withOpacity(0.4)
+                            : AppTheme.cardBorder(context),
+                      ),
                     ),
                   ),
-                ),
-            ],
+                  if (_unreadCount > 0)
+                    TextButton.icon(
+                      onPressed: _handleMarkAllAsRead,
+                      icon: const Icon(Icons.done_all_rounded, size: 16),
+                      label: const Text(
+                        'Mark all read',
+                        style: TextStyle(fontSize: 12),
+                      ),
+                      style: TextButton.styleFrom(
+                        foregroundColor: const Color(0xFF1565C0),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                      ),
+                    ),
+                ],
+              );
+
+              if (isCompact) {
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    titleSection,
+                    const SizedBox(height: 12),
+                    actionButtons,
+                  ],
+                );
+              }
+
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(child: titleSection),
+                  const SizedBox(width: 12),
+                  actionButtons,
+                ],
+              );
+            },
           ),
 
           const SizedBox(height: 16),
 
           // Filters (All vs Unread)
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               _buildFilterChip(
                 label: 'All (${_notifications.length})',
@@ -323,19 +354,18 @@ class _NotificationCentreViewState extends State<NotificationCentreView> {
                 onTap: () => setState(() => _filterOnlyUnread = false),
                 context: context,
               ),
-              const SizedBox(width: 8),
               _buildFilterChip(
                 label: 'Unread ($_unreadCount)',
                 isSelected: _filterOnlyUnread,
                 onTap: () => setState(() => _filterOnlyUnread = true),
                 context: context,
               ),
-              const Spacer(),
               IconButton(
                 icon: const Icon(Icons.refresh_rounded, size: 18),
                 tooltip: 'Refresh Notifications',
                 color: AppTheme.textSecondary(context),
                 onPressed: _loadNotifications,
+                visualDensity: VisualDensity.compact,
               ),
             ],
           ),

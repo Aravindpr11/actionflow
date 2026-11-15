@@ -812,63 +812,81 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
   // HEADER
   // ===========================================================================
   Widget _buildHeader(BuildContext context, int pendingCount) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Wrap(
-                crossAxisAlignment: WrapCrossAlignment.center,
-                spacing: 10,
-                runSpacing: 6,
-                children: [
-                  Text(
-                    'Request Approval',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
-                  ),
-                  if (pendingCount > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: const Color(0xFFDC2626).withOpacity(0.12),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(color: const Color(0xFFDC2626).withOpacity(0.4)),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isNarrow = constraints.maxWidth < 480;
+        final titleContent = Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 10,
+              runSpacing: 6,
+              children: [
+                Text(
+                  'Request Approval',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                        fontWeight: FontWeight.bold,
                       ),
-                      child: Text(
-                        '$pendingCount Action(s) Required',
-                        style: const TextStyle(
-                          color: Color(0xFFDC2626),
-                          fontWeight: FontWeight.bold,
-                          fontSize: 12,
-                        ),
+                ),
+                if (pendingCount > 0)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFDC2626).withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: const Color(0xFFDC2626).withOpacity(0.4)),
+                    ),
+                    child: Text(
+                      '$pendingCount Action(s) Required',
+                      style: const TextStyle(
+                        color: Color(0xFFDC2626),
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
                       ),
                     ),
-                ],
+                  ),
+              ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              widget.isManager
+                  ? 'Review, approve, or reject operational and HSSE requests across your scope.'
+                  : 'Review requests where your designated sign-off is required.',
+              style: TextStyle(
+                color: AppTheme.textSecondary(context),
+                fontSize: 13,
               ),
-              const SizedBox(height: 4),
-              Text(
-                widget.isManager
-                    ? 'Review, approve, or reject operational and HSSE requests across your scope.'
-                    : 'Review requests where your designated sign-off is required.',
-                style: TextStyle(
-                  color: AppTheme.textSecondary(context),
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 12),
-        OutlinedButton.icon(
+            ),
+          ],
+        );
+
+        final refreshBtn = OutlinedButton.icon(
           onPressed: _loadRequests,
           icon: const Icon(Icons.refresh_rounded, size: 18),
           label: const Text('Refresh'),
-        ),
-      ],
+        );
+
+        if (isNarrow) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              titleContent,
+              const SizedBox(height: 10),
+              refreshBtn,
+            ],
+          );
+        }
+
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(child: titleContent),
+            const SizedBox(width: 12),
+            refreshBtn,
+          ],
+        );
+      },
     );
   }
 
@@ -1023,8 +1041,10 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Top Badges
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   // Display ID
                   Container(
@@ -1044,7 +1064,6 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
 
                   // Type
                   Container(
@@ -1069,7 +1088,6 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
 
                   // Priority
                   Container(
@@ -1088,10 +1106,8 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
                     ),
                   ),
 
-                  const Spacer(),
-
                   // Action required chip if current user can approve
-                  if (canIApprove) ...[
+                  if (canIApprove)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       decoration: BoxDecoration(
@@ -1114,8 +1130,6 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
                         ],
                       ),
                     ),
-                    const SizedBox(width: 8),
-                  ],
 
                   // Status
                   Container(
@@ -1160,12 +1174,15 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
                 children: [
                   Icon(Icons.person_outline_rounded, size: 15, color: AppTheme.textSecondary(context)),
                   const SizedBox(width: 4),
-                  Text(
-                    'Requester: ${req.createdByName} (${req.createdByRole})',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: AppTheme.textSecondary(context),
+                  Expanded(
+                    child: Text(
+                      'Requester: ${req.createdByName} (${req.createdByRole})',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: AppTheme.textSecondary(context),
+                      ),
                     ),
                   ),
                 ],
@@ -1190,65 +1207,83 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
                 crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   if (req.departmentName.isNotEmpty)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(Icons.business_outlined, size: 14, color: AppTheme.textSecondary(context)),
-                        const SizedBox(width: 4),
-                        Text(
-                          req.departmentName,
-                          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary(context)),
-                        ),
-                      ],
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.business_outlined, size: 14, color: AppTheme.textSecondary(context)),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              req.departmentName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary(context)),
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   if (req.siteName.isNotEmpty)
-                    Row(
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 240),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.location_on_outlined, size: 14, color: AppTheme.textSecondary(context)),
+                          const SizedBox(width: 4),
+                          Flexible(
+                            child: Text(
+                              req.siteName,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 12, color: AppTheme.textSecondary(context)),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 240),
+                    child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.location_on_outlined, size: 14, color: AppTheme.textSecondary(context)),
-                        const SizedBox(width: 4),
-                        Text(
-                          req.siteName,
-                          style: TextStyle(fontSize: 12, color: AppTheme.textSecondary(context)),
-                        ),
-                      ],
-                    ),
-                  Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(
-                        Icons.calendar_today_outlined,
-                        size: 14,
-                        color: isOverdue ? const Color(0xFFDC2626) : AppTheme.textSecondary(context),
-                      ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'Required By: ${req.requiredByDate}${req.requiredByTime.isNotEmpty ? " (${req.requiredByTime})" : ""}',
-                        style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
+                        Icon(
+                          Icons.calendar_today_outlined,
+                          size: 14,
                           color: isOverdue ? const Color(0xFFDC2626) : AppTheme.textSecondary(context),
                         ),
-                      ),
-                      if (isOverdue) ...[
-                        const SizedBox(width: 6),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFDC2626).withOpacity(0.12),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: const Text(
-                            'OVERDUE',
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            'Required: ${req.requiredByDate}${req.requiredByTime.isNotEmpty ? " (${req.requiredByTime})" : ""}',
+                            overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFFDC2626),
+                              fontSize: 12,
+                              fontWeight: isOverdue ? FontWeight.bold : FontWeight.normal,
+                              color: isOverdue ? const Color(0xFFDC2626) : AppTheme.textSecondary(context),
                             ),
                           ),
                         ),
+                        if (isOverdue) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFFDC2626).withOpacity(0.12),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: const Text(
+                              'OVERDUE',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFFDC2626),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
-                    ],
+                    ),
                   ),
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -1283,20 +1318,27 @@ class _RequestApprovalScreenState extends State<RequestApprovalScreen>
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Approval Chain (${req.approvers.length} Approver(s))',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textSecondary(context),
+                        Flexible(
+                          child: Text(
+                            'Approval Chain (${req.approvers.length} Approver(s))',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textSecondary(context),
+                            ),
                           ),
                         ),
-                        Text(
-                          req.approvalProgress,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: req.isApproved ? const Color(0xFF16A34A) : AppTheme.primaryColor,
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            req.approvalProgress,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: req.isApproved ? const Color(0xFF16A34A) : AppTheme.primaryColor,
+                            ),
                           ),
                         ),
                       ],

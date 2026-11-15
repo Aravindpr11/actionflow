@@ -582,27 +582,42 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
                           const SizedBox(height: 8),
 
                           // Radio cards for Sequential vs Parallel
-                          Row(
-                            children: [
-                              Expanded(
-                                child: _buildApprovalTypeRadio(
-                                  type: ApprovalType.sequential,
-                                  title: 'Sequential Approval',
-                                  subtitle: 'Approvers review in defined order. Each step unlocks upon prior approval.',
-                                  icon: Icons.linear_scale_rounded,
+                          if (isNarrow) ...[
+                            _buildApprovalTypeRadio(
+                              type: ApprovalType.sequential,
+                              title: 'Sequential Approval',
+                              subtitle: 'Approvers review in defined order. Each step unlocks upon prior approval.',
+                              icon: Icons.linear_scale_rounded,
+                            ),
+                            const SizedBox(height: 10),
+                            _buildApprovalTypeRadio(
+                              type: ApprovalType.parallel,
+                              title: 'Parallel Approval',
+                              subtitle: 'All designated approvers receive tasks concurrently and review independently.',
+                              icon: Icons.alt_route_rounded,
+                            ),
+                          ] else
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _buildApprovalTypeRadio(
+                                    type: ApprovalType.sequential,
+                                    title: 'Sequential Approval',
+                                    subtitle: 'Approvers review in defined order. Each step unlocks upon prior approval.',
+                                    icon: Icons.linear_scale_rounded,
+                                  ),
                                 ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: _buildApprovalTypeRadio(
-                                  type: ApprovalType.parallel,
-                                  title: 'Parallel Approval',
-                                  subtitle: 'All designated approvers receive tasks concurrently and review independently.',
-                                  icon: Icons.alt_route_rounded,
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: _buildApprovalTypeRadio(
+                                    type: ApprovalType.parallel,
+                                    title: 'Parallel Approval',
+                                    subtitle: 'All designated approvers receive tasks concurrently and review independently.',
+                                    icon: Icons.alt_route_rounded,
+                                  ),
                                 ),
-                              ),
-                            ],
-                          ),
+                              ],
+                            ),
                         ],
                       ),
                     ),
@@ -972,15 +987,17 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
                     const SizedBox(height: 24),
 
                     // Submission Buttons Bar
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.end,
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      alignment: WrapAlignment.end,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         if (widget.onCancel != null)
                           TextButton(
                             onPressed: _isSubmitting ? null : widget.onCancel,
                             child: const Text('Cancel'),
                           ),
-                        const SizedBox(width: 12),
                         ElevatedButton.icon(
                           key: const Key('submit_request_button'),
                           onPressed: _isSubmitting ? null : _submitRequest,
@@ -1031,9 +1048,11 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
             children: [
               Icon(icon, size: 18, color: AppTheme.primaryColor),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              Expanded(
+                child: Text(
+                  title,
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),
@@ -1048,6 +1067,7 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
     return DropdownButtonFormField<String>(
       key: const Key('request_type_dropdown'),
       value: _selectedType,
+      isExpanded: true,
       decoration: const InputDecoration(labelText: 'Request Type *'),
       items: RequestType.values.map((t) {
         return DropdownMenuItem(
@@ -1056,7 +1076,12 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
             children: [
               Icon(RequestType.getIcon(t), size: 16, color: RequestType.getColor(t)),
               const SizedBox(width: 8),
-              Text(t),
+              Expanded(
+                child: Text(
+                  t,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         );
@@ -1069,6 +1094,7 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
     return DropdownButtonFormField<String>(
       key: const Key('request_priority_dropdown'),
       value: _selectedPriority,
+      isExpanded: true,
       decoration: const InputDecoration(labelText: 'Priority *'),
       items: RequestPriority.values.map((p) {
         return DropdownMenuItem(
@@ -1084,7 +1110,12 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
                 ),
               ),
               const SizedBox(width: 8),
-              Text(p),
+              Expanded(
+                child: Text(
+                  p,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
             ],
           ),
         );
@@ -1097,10 +1128,14 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
     return DropdownButtonFormField<String>(
       key: const Key('request_department_dropdown'),
       value: _selectedDepartmentName.isNotEmpty ? _selectedDepartmentName : null,
+      isExpanded: true,
       decoration: const InputDecoration(labelText: 'Department *'),
       items: _departments.map((d) {
         final name = d['name']?.toString() ?? '';
-        return DropdownMenuItem(value: name, child: Text(name));
+        return DropdownMenuItem(
+          value: name,
+          child: Text(name, overflow: TextOverflow.ellipsis),
+        );
       }).toList(),
       onChanged: _isSubmitting
           ? null
@@ -1118,10 +1153,14 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
     return DropdownButtonFormField<String>(
       key: const Key('request_site_dropdown'),
       value: _selectedSiteName.isNotEmpty ? _selectedSiteName : null,
+      isExpanded: true,
       decoration: const InputDecoration(labelText: 'Site / Facility *'),
       items: _sites.map((s) {
         final name = s['name']?.toString() ?? '';
-        return DropdownMenuItem(value: name, child: Text(name));
+        return DropdownMenuItem(
+          value: name,
+          child: Text(name, overflow: TextOverflow.ellipsis),
+        );
       }).toList(),
       onChanged: _isSubmitting
           ? null
@@ -1223,12 +1262,15 @@ class _NewRequestScreenState extends State<NewRequestScreen> {
                     children: [
                       Icon(icon, size: 14, color: isSelected ? AppTheme.primaryColor : AppTheme.textSecondary(context)),
                       const SizedBox(width: 4),
-                      Text(
-                        title,
-                        style: TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                          color: isSelected ? AppTheme.primaryColor : AppTheme.textPrimary(context),
+                      Expanded(
+                        child: Text(
+                          title,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? AppTheme.primaryColor : AppTheme.textPrimary(context),
+                          ),
                         ),
                       ),
                     ],

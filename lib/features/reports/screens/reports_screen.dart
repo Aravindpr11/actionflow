@@ -1081,12 +1081,15 @@ class _SectionCard extends StatelessWidget {
             children: [
               Icon(icon, size: 18, color: const Color(0xFF1565C0)),
               const SizedBox(width: 8),
-              Text(
-                title,
-                style: TextStyle(
-                  fontSize: 15,
-                  fontWeight: FontWeight.bold,
-                  color: AppTheme.textPrimary(context),
+              Expanded(
+                child: Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary(context),
+                  ),
+                  overflow: TextOverflow.ellipsis,
                 ),
               ),
             ],

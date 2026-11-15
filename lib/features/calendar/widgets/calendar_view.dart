@@ -1343,7 +1343,11 @@ class _ActionFlowCalendarViewState extends State<ActionFlowCalendarView> {
             physics: const NeverScrollableScrollPhysics(),
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: 7,
-              childAspectRatio: isDesktop ? 1.25 : (isNarrow ? 0.95 : 1.1),
+              childAspectRatio: isDesktop
+                  ? 1.25
+                  : (MediaQuery.sizeOf(context).width < 360
+                      ? 0.72
+                      : (isNarrow ? 0.85 : 1.1)),
               crossAxisSpacing: 6,
               mainAxisSpacing: 6,
             ),

@@ -531,7 +531,11 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                 ),
               ),
               const SizedBox(height: 12),
-              Row(children: buttons),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: buttons,
+              ),
             ],
           );
         }
@@ -718,8 +722,10 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Top Metadata Row: Display ID, Type, Priority, Status
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
+              Wrap(
+                spacing: 8,
+                runSpacing: 6,
+                crossAxisAlignment: WrapCrossAlignment.center,
                 children: [
                   // Display ID Badge
                   Container(
@@ -739,7 +745,6 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 8),
 
                   // Request Type Badge
                   Container(
@@ -764,7 +769,6 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 8),
 
                   // Priority Badge
                   Container(
@@ -782,8 +786,6 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                       ),
                     ),
                   ),
-
-                  const Spacer(),
 
                   // Status Pill
                   Container(
@@ -950,20 +952,27 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          'Workflow Progress',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: AppTheme.textSecondary(context),
+                        Flexible(
+                          child: Text(
+                            'Workflow Progress',
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                              color: AppTheme.textSecondary(context),
+                            ),
                           ),
                         ),
-                        Text(
-                          req.approvalProgress,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.bold,
-                            color: req.isApproved ? const Color(0xFF16A34A) : AppTheme.primaryColor,
+                        const SizedBox(width: 8),
+                        Flexible(
+                          child: Text(
+                            req.approvalProgress,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: req.isApproved ? const Color(0xFF16A34A) : AppTheme.primaryColor,
+                            ),
                           ),
                         ),
                       ],

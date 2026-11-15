@@ -1958,18 +1958,21 @@ class _AddActionScreenState extends State<AddActionScreen> {
           ? const Padding(
               padding: EdgeInsets.symmetric(vertical: 24),
               child: Center(
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
+                child: Wrap(
+                  alignment: WrapAlignment.center,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 12,
+                  runSpacing: 8,
+                  children: const [
                     SizedBox(
                       width: 18,
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     ),
-                    SizedBox(width: 12),
                     Text(
                       'Loading organizational configuration...',
                       style: TextStyle(fontSize: 13, color: Color(0xFF64748B)),
+                      textAlign: TextAlign.center,
                     ),
                   ],
                 ),

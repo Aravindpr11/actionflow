@@ -1222,12 +1222,15 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
                   children: [
                     Icon(RequestType.getIcon(req.requestType), size: 14, color: typeColor),
                     const SizedBox(width: 6),
-                    Text(
-                      req.requestType,
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
-                        color: typeColor,
+                    Flexible(
+                      child: Text(
+                        req.requestType,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: typeColor,
+                        ),
                       ),
                     ),
                   ],
@@ -1529,9 +1532,11 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
             children: [
               const Icon(Icons.attach_file_rounded, size: 20),
               const SizedBox(width: 8),
-              const Text(
-                'Attachments',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const Expanded(
+                child: Text(
+                  'Attachments',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
               const SizedBox(width: 8),
               Container(
@@ -1778,10 +1783,13 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Approval Chain',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const Expanded(
+                child: Text(
+                  'Approval Chain',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
@@ -1828,17 +1836,24 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                'Status: ${req.status}',
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: RequestStatus.getColor(req.status),
+              Flexible(
+                child: Text(
+                  'Status: ${req.status}',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: RequestStatus.getColor(req.status),
+                  ),
                 ),
               ),
-              Text(
-                req.approvalProgress,
-                style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+              const SizedBox(width: 8),
+              Flexible(
+                child: Text(
+                  req.approvalProgress,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+                ),
               ),
             ],
           ),
@@ -1896,13 +1911,17 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
                           Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
-                              Text(
-                                '${req.isSequential ? "Step ${a.stepOrder}: " : ""}${a.approverName}',
-                                style: const TextStyle(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
+                              Expanded(
+                                child: Text(
+                                  '${req.isSequential ? "Step ${a.stepOrder}: " : ""}${a.approverName}',
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
+                              const SizedBox(width: 6),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
@@ -1983,9 +2002,11 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
             children: [
               const Icon(Icons.timeline_rounded, size: 20),
               const SizedBox(width: 8),
-              const Text(
-                'Audit Trail & History',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              const Expanded(
+                child: Text(
+                  'Audit Trail & History',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
               const SizedBox(width: 8),
               Container(
