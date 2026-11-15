@@ -1,8 +1,18 @@
 import 'dart:convert';
 import 'package:action_flow/features/requests/widgets/request_filter_bar.dart';
 import 'package:action_flow/services/document_service.dart';
+import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+List<int> _buildZip(Map<String, String> files) {
+  final archive = Archive();
+  for (final entry in files.entries) {
+    final bytes = utf8.encode(entry.value);
+    archive.addFile(ArchiveFile(entry.key, bytes.length, bytes));
+  }
+  return ZipEncoder().encode(archive)!;
+}
 
 void main() {
   group('DocumentService — MIME Resolution and Pre-Upload Validation (SEC-03)', () {
@@ -114,28 +124,11 @@ void main() {
         isNull,
       );
 
-      // Generic ZIP archive without OpenXML markers renamed to .xlsx or .docx must be REJECTED
-      final genericZipBytes = [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x08, 0x00, 0x00, 0x00];
-      final genericDocxResult = DocumentService.validateFile(
-        fileName: 'report.docx',
-        fileSize: genericZipBytes.length,
-        fileBytes: genericZipBytes,
-      );
-      expect(genericDocxResult, contains('generic ZIP archive, not a valid Word'));
-
-      final genericXlsxResult = DocumentService.validateFile(
-        fileName: 'audit.xlsx',
-        fileSize: genericZipBytes.length,
-        fileBytes: genericZipBytes,
-      );
-      expect(genericXlsxResult, contains('generic ZIP archive, not a valid Excel'));
-
-      // Genuine DOCX with OpenXML markers ('PK\x03\x04' + '[Content_Types].xml' + 'word/')
-      final genuineDocxBytes = <int>[
-        0x50, 0x4B, 0x03, 0x04,
-        ...utf8.encode('[Content_Types].xml'),
-        ...utf8.encode('word/document.xml'),
-      ];
+      // 1. Genuine DOCX package (contains [Content_Types].xml and word/document.xml)
+      final genuineDocxBytes = _buildZip({
+        '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>',
+        'word/document.xml': '<?xml version="1.0" encoding="UTF-8"?><w:document></w:document>',
+      });
       expect(
         DocumentService.validateFile(
           fileName: 'hsse_policy.docx',
@@ -143,13 +136,14 @@ void main() {
           fileBytes: genuineDocxBytes,
         ),
         isNull,
+        reason: 'Genuine DOCX package must be accepted.',
       );
 
-      // Genuine XLSX with OpenXML markers ('PK\x03\x04' + 'xl/workbook.xml')
-      final genuineXlsxBytes = <int>[
-        0x50, 0x4B, 0x03, 0x04,
-        ...utf8.encode('xl/workbook.xml'),
-      ];
+      // 2. Genuine XLSX package (contains [Content_Types].xml and xl/workbook.xml)
+      final genuineXlsxBytes = _buildZip({
+        '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>',
+        'xl/workbook.xml': '<?xml version="1.0" encoding="UTF-8"?><workbook></workbook>',
+      });
       expect(
         DocumentService.validateFile(
           fileName: 'incident_metrics.xlsx',
@@ -157,7 +151,186 @@ void main() {
           fileBytes: genuineXlsxBytes,
         ),
         isNull,
+        reason: 'Genuine XLSX package must be accepted.',
       );
+
+      // 3. DOCX renamed as XLSX (contains word/ but no xl/)
+      final docxRenamedAsXlsx = DocumentService.validateFile(
+        fileName: 'audit_report.xlsx',
+        fileSize: genuineDocxBytes.length,
+        fileBytes: genuineDocxBytes,
+      );
+      expect(
+        docxRenamedAsXlsx,
+        contains('Content is a Word document (.docx) renamed as an Excel (.xlsx) spreadsheet.'),
+      );
+
+      // 4. XLSX renamed as DOCX (contains xl/ but no word/)
+      final xlsxRenamedAsDocx = DocumentService.validateFile(
+        fileName: 'summary.docx',
+        fileSize: genuineXlsxBytes.length,
+        fileBytes: genuineXlsxBytes,
+      );
+      expect(
+        xlsxRenamedAsDocx,
+        contains('Content is an Excel spreadsheet (.xlsx) renamed as a Word (.docx) document.'),
+      );
+
+      // 5. Generic ZIP renamed as DOCX (valid ZIP but no word/ and no [Content_Types].xml)
+      final genericZipBytes = _buildZip({'notes.txt': 'Standard uncompressed notes file'});
+      final genericDocxResult = DocumentService.validateFile(
+        fileName: 'report.docx',
+        fileSize: genericZipBytes.length,
+        fileBytes: genericZipBytes,
+      );
+      expect(genericDocxResult, contains('generic ZIP archive, not a valid Word (.docx) document'));
+
+      // 5b. Generic ZIP containing [Content_Types].xml alone without word/ must NOT be accepted as DOCX
+      final zipWithContentTypesOnly = _buildZip({
+        '[Content_Types].xml': '<?xml version="1.0"?><Types></Types>',
+        'generic.txt': 'hello',
+      });
+      final contentTypesOnlyDocx = DocumentService.validateFile(
+        fileName: 'fake.docx',
+        fileSize: zipWithContentTypesOnly.length,
+        fileBytes: zipWithContentTypesOnly,
+      );
+      expect(contentTypesOnlyDocx, contains('generic ZIP archive, not a valid Word (.docx) document'));
+
+      // 6. Generic ZIP renamed as XLSX (valid ZIP but no xl/)
+      final genericXlsxResult = DocumentService.validateFile(
+        fileName: 'audit.xlsx',
+        fileSize: genericZipBytes.length,
+        fileBytes: genericZipBytes,
+      );
+      expect(genericXlsxResult, contains('generic ZIP archive, not a valid Excel (.xlsx) spreadsheet'));
+
+      // 6b. Generic ZIP containing [Content_Types].xml alone without xl/ must NOT be accepted as XLSX
+      final contentTypesOnlyXlsx = DocumentService.validateFile(
+        fileName: 'fake.xlsx',
+        fileSize: zipWithContentTypesOnly.length,
+        fileBytes: zipWithContentTypesOnly,
+      );
+      expect(contentTypesOnlyXlsx, contains('generic ZIP archive, not a valid Excel (.xlsx) spreadsheet'));
+
+      // 7. Malformed ZIP (starts with PK\x03\x04 but truncated/corrupt)
+      final malformedZipBytes = [0x50, 0x4B, 0x03, 0x04, 0xFF, 0xFE, 0x00, 0x00];
+      final malformedDocx = DocumentService.validateFile(
+        fileName: 'corrupt.docx',
+        fileSize: malformedZipBytes.length,
+        fileBytes: malformedZipBytes,
+      );
+      expect(malformedDocx, contains('Corrupt or malformed ZIP container for .docx file.'));
+
+      final malformedXlsx = DocumentService.validateFile(
+        fileName: 'corrupt.xlsx',
+        fileSize: malformedZipBytes.length,
+        fileBytes: malformedZipBytes,
+      );
+      expect(malformedXlsx, contains('Corrupt or malformed ZIP container for .xlsx file.'));
+
+      // 8. Executable renamed as an Office document
+      final exeAsDocx = DocumentService.validateFile(
+        fileName: 'payload.docx',
+        fileSize: disguisedExeBytes.length,
+        fileBytes: disguisedExeBytes,
+      );
+      expect(exeAsDocx, contains('Security Violation: Executable file disguised as .docx is not permitted.'));
+
+      final exeAsXlsx = DocumentService.validateFile(
+        fileName: 'payload.xlsx',
+        fileSize: disguisedExeBytes.length,
+        fileBytes: disguisedExeBytes,
+      );
+      expect(exeAsXlsx, contains('Security Violation: Executable file disguised as .xlsx is not permitted.'));
+
+      // 9. Legacy Office: Distinguishing DOC from XLS
+      // Genuine Word .doc (OLE CFB with WordDocument stream)
+      final genuineDocBytes = <int>[
+        0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1,
+        ...utf8.encode('WordDocument'),
+      ];
+      expect(
+        DocumentService.validateFile(
+          fileName: 'legacy_charter.doc',
+          fileSize: genuineDocBytes.length,
+          fileBytes: genuineDocBytes,
+        ),
+        isNull,
+      );
+
+      // Genuine Word .doc (RTF format)
+      final genuineRtfBytes = utf8.encode(r'{\rtf1\ansi\deff0 Test RTF Word Document}');
+      expect(
+        DocumentService.validateFile(
+          fileName: 'legacy_procedure.doc',
+          fileSize: genuineRtfBytes.length,
+          fileBytes: genuineRtfBytes,
+        ),
+        isNull,
+      );
+
+      // Genuine Excel .xls (OLE CFB with Workbook stream)
+      final genuineXlsBytes = <int>[
+        0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1,
+        ...utf8.encode('Workbook'),
+      ];
+      expect(
+        DocumentService.validateFile(
+          fileName: 'legacy_register.xls',
+          fileSize: genuineXlsBytes.length,
+          fileBytes: genuineXlsBytes,
+        ),
+        isNull,
+      );
+
+      // Genuine Excel .xls (BIFF8 BOF record)
+      final genuineBiffBytes = <int>[0x09, 0x08, 0x08, 0x00, 0x00, 0x05, 0x05, 0x20];
+      expect(
+        DocumentService.validateFile(
+          fileName: 'legacy_biff.xls',
+          fileSize: genuineBiffBytes.length,
+          fileBytes: genuineBiffBytes,
+        ),
+        isNull,
+      );
+
+      // Word .doc renamed as Excel .xls (OLE CFB contains WordDocument but no Workbook)
+      final docRenamedAsXls = DocumentService.validateFile(
+        fileName: 'mislabeled.xls',
+        fileSize: genuineDocBytes.length,
+        fileBytes: genuineDocBytes,
+      );
+      expect(
+        docRenamedAsXls,
+        contains('Content is a Word document (.doc) renamed as an Excel (.xls) spreadsheet.'),
+      );
+
+      // Excel .xls renamed as Word .doc (OLE CFB contains Workbook but no WordDocument)
+      final xlsRenamedAsDoc = DocumentService.validateFile(
+        fileName: 'mislabeled.doc',
+        fileSize: genuineXlsBytes.length,
+        fileBytes: genuineXlsBytes,
+      );
+      expect(
+        xlsRenamedAsDoc,
+        contains('Content is an Excel spreadsheet (.xls) renamed as a Word (.doc) document.'),
+      );
+
+      // Generic ZIP disguised as legacy .doc or .xls
+      final zipAsDoc = DocumentService.validateFile(
+        fileName: 'archive.doc',
+        fileSize: genericZipBytes.length,
+        fileBytes: genericZipBytes,
+      );
+      expect(zipAsDoc, contains('ZIP archive or OpenXML file disguised as legacy Word (.doc) document'));
+
+      final zipAsXls = DocumentService.validateFile(
+        fileName: 'archive.xls',
+        fileSize: genericZipBytes.length,
+        fileBytes: genericZipBytes,
+      );
+      expect(zipAsXls, contains('ZIP archive or OpenXML file disguised as legacy Excel (.xls) spreadsheet'));
 
       // WebP signature validation: RIFF container with WEBP identifier
       final validWebpBytes = [

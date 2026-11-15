@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:action_flow/core/config/supabase_config.dart';
 import 'package:action_flow/models/document_record.dart';
 import 'package:action_flow/services/app_file_picker_service.dart';
+import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -336,7 +337,7 @@ class DocumentService {
   };
 
   /// Scans [bytes] up to [maxScan] length to check if [pattern] sequence exists.
-  static bool _containsSubsequence(List<int> bytes, List<int> pattern, [int maxScan = 4096]) {
+  static bool _containsSubsequence(List<int> bytes, List<int> pattern, [int maxScan = 65536]) {
     final limit = min(bytes.length, maxScan);
     if (pattern.isEmpty || limit < pattern.length) return false;
     for (int i = 0; i <= limit - pattern.length; i++) {
@@ -350,6 +351,70 @@ class DocumentService {
       if (match) return true;
     }
     return false;
+  }
+
+  /// Inspects a ZIP archive's package structure to verify OpenXML document contents.
+  /// Returns null if valid for the given [expectedType] ('docx' or 'xlsx'),
+  /// or a descriptive error message if invalid.
+  static String? _validateOpenXmlPackage(List<int> bytes, String expectedType) {
+    if (bytes.length < 4 ||
+        bytes[0] != 0x50 ||
+        bytes[1] != 0x4B ||
+        bytes[2] != 0x03 ||
+        bytes[3] != 0x04) {
+      return 'File validation error: Content does not match expected OpenXML ZIP container.';
+    }
+
+    Archive archive;
+    try {
+      archive = ZipDecoder().decodeBytes(bytes, verify: false);
+      if (bytes.length < 30 || archive.files.isEmpty) {
+        return 'File validation error: Corrupt or malformed ZIP container for .$expectedType file.';
+      }
+    } catch (e) {
+      return 'File validation error: Corrupt or malformed ZIP container for .$expectedType file.';
+    }
+
+    bool hasContentTypes = false;
+    bool hasWordPart = false;
+    bool hasExcelPart = false;
+
+    for (final file in archive.files) {
+      final name = file.name.replaceAll('\\', '/');
+      if (name == '[Content_Types].xml' || name.endsWith('/[Content_Types].xml')) {
+        hasContentTypes = true;
+      }
+      if (name.startsWith('word/') || name.contains('/word/')) {
+        hasWordPart = true;
+      }
+      if (name.startsWith('xl/') || name.contains('/xl/')) {
+        hasExcelPart = true;
+      }
+    }
+
+    if (!hasContentTypes) {
+      return expectedType == 'docx'
+          ? 'File validation error: File is a generic ZIP archive, not a valid Word (.docx) document.'
+          : 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
+    }
+
+    if (expectedType == 'docx') {
+      if (hasExcelPart && !hasWordPart) {
+        return 'File validation error: Content is an Excel spreadsheet (.xlsx) renamed as a Word (.docx) document.';
+      }
+      if (!hasWordPart) {
+        return 'File validation error: File is a generic ZIP archive, not a valid Word (.docx) document.';
+      }
+    } else if (expectedType == 'xlsx') {
+      if (hasWordPart && !hasExcelPart) {
+        return 'File validation error: Content is a Word document (.docx) renamed as an Excel (.xlsx) spreadsheet.';
+      }
+      if (!hasExcelPart) {
+        return 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
+      }
+    }
+
+    return null;
   }
 
   /// Validates file type, size, and optional magic-byte content. Returns null if valid, or an error string if invalid.
@@ -449,55 +514,114 @@ class DocumentService {
           }
           break;
         case 'docx':
-          // DOCX must be a ZIP container starting with PK\x03\x04 AND contain OpenXML markers (word/ or [Content_Types].xml)
-          if (fileBytes.length < 4 ||
-              fileBytes[0] != 0x50 ||
-              fileBytes[1] != 0x4B ||
-              fileBytes[2] != 0x03 ||
-              fileBytes[3] != 0x04) {
-            return 'File validation error: Content does not match expected DOCX ZIP container.';
-          }
-          final hasWordMarker = _containsSubsequence(fileBytes, const [0x77, 0x6F, 0x72, 0x64, 0x2F]); // 'word/'
-          final hasContentTypesDocx = _containsSubsequence(fileBytes, const [
-            0x5B, 0x43, 0x6F, 0x6E, 0x74, 0x65, 0x6E, 0x74, 0x5F, 0x54, 0x79, 0x70, 0x65, 0x73, 0x5D, 0x2E, 0x78, 0x6D, 0x6C
-          ]); // '[Content_Types].xml'
-          if (!hasWordMarker && !hasContentTypesDocx) {
-            return 'File validation error: File is a generic ZIP archive, not a valid Word (.docx) document.';
+          final openXmlDocxErr = _validateOpenXmlPackage(fileBytes, 'docx');
+          if (openXmlDocxErr != null) {
+            return openXmlDocxErr;
           }
           break;
         case 'xlsx':
-          // XLSX must be a ZIP container starting with PK\x03\x04 AND contain OpenXML markers (xl/ or [Content_Types].xml)
-          if (fileBytes.length < 4 ||
-              fileBytes[0] != 0x50 ||
-              fileBytes[1] != 0x4B ||
-              fileBytes[2] != 0x03 ||
-              fileBytes[3] != 0x04) {
-            return 'File validation error: Content does not match expected XLSX ZIP container.';
-          }
-          final hasXlMarker = _containsSubsequence(fileBytes, const [0x78, 0x6C, 0x2F]); // 'xl/'
-          final hasContentTypesXlsx = _containsSubsequence(fileBytes, const [
-            0x5B, 0x43, 0x6F, 0x6E, 0x74, 0x65, 0x6E, 0x74, 0x5F, 0x54, 0x79, 0x70, 0x65, 0x73, 0x5D, 0x2E, 0x78, 0x6D, 0x6C
-          ]); // '[Content_Types].xml'
-          if (!hasXlMarker && !hasContentTypesXlsx) {
-            return 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
+          final openXmlXlsxErr = _validateOpenXmlPackage(fileBytes, 'xlsx');
+          if (openXmlXlsxErr != null) {
+            return openXmlXlsxErr;
           }
           break;
         case 'doc':
-          if (fileBytes.length >= 4) {
-            final isOle = fileBytes[0] == 0xD0 && fileBytes[1] == 0xCF && fileBytes[2] == 0x11 && fileBytes[3] == 0xE0;
-            final isZip = fileBytes[0] == 0x50 && fileBytes[1] == 0x4B && fileBytes[2] == 0x03 && fileBytes[3] == 0x04;
-            if (!isOle && !isZip) {
-              return 'File validation error: Content does not match expected Word document signature.';
+          if (fileBytes.length >= 2 && fileBytes[0] == 0x50 && fileBytes[1] == 0x4B) {
+            return 'File validation error: ZIP archive or OpenXML file disguised as legacy Word (.doc) document is not permitted.';
+          }
+          final isRtf = fileBytes.length >= 5 &&
+              fileBytes[0] == 0x7B &&
+              fileBytes[1] == 0x5C &&
+              fileBytes[2] == 0x72 &&
+              fileBytes[3] == 0x74 &&
+              fileBytes[4] == 0x66; // '{\rtf'
+          final isOle = fileBytes.length >= 4 &&
+              fileBytes[0] == 0xD0 &&
+              fileBytes[1] == 0xCF &&
+              fileBytes[2] == 0x11 &&
+              fileBytes[3] == 0xE0;
+          if (isOle) {
+            final hasWordDocUtf16 = _containsSubsequence(fileBytes, const [
+              0x57, 0x00, 0x6F, 0x00, 0x72, 0x00, 0x64, 0x00,
+              0x44, 0x00, 0x6F, 0x00, 0x63, 0x00, 0x75, 0x00,
+              0x6D, 0x00, 0x65, 0x00, 0x6E, 0x00, 0x74, 0x00
+            ]); // 'WordDocument' in UTF-16LE
+            final hasWordDocAscii = _containsSubsequence(
+              fileBytes,
+              const [0x57, 0x6F, 0x72, 0x64, 0x44, 0x6F, 0x63, 0x75, 0x6D, 0x65, 0x6E, 0x74],
+            );
+            final hasWorkbookUtf16 = _containsSubsequence(fileBytes, const [
+              0x57, 0x00, 0x6F, 0x00, 0x72, 0x00, 0x6B, 0x00,
+              0x62, 0x00, 0x6F, 0x00, 0x6F, 0x00, 0x6B, 0x00
+            ]); // 'Workbook' in UTF-16LE
+            final hasWorkbookAscii = _containsSubsequence(
+              fileBytes,
+              const [0x57, 0x6F, 0x72, 0x6B, 0x62, 0x6F, 0x6F, 0x6B],
+            );
+            final hasBookUtf16 = _containsSubsequence(fileBytes, const [
+              0x42, 0x00, 0x6F, 0x00, 0x6F, 0x00, 0x6B, 0x00
+            ]); // 'Book' in UTF-16LE
+            final hasBookAscii = _containsSubsequence(fileBytes, const [0x42, 0x6F, 0x6F, 0x6B]);
+
+            final hasWord = hasWordDocUtf16 || hasWordDocAscii;
+            final hasExcel = hasWorkbookUtf16 || hasWorkbookAscii || hasBookUtf16 || hasBookAscii;
+
+            if (hasExcel && !hasWord) {
+              return 'File validation error: Content is an Excel spreadsheet (.xls) renamed as a Word (.doc) document.';
             }
+            if (!hasWord) {
+              return 'File validation error: Content does not match expected Word (.doc) document signature.';
+            }
+          } else if (!isRtf) {
+            return 'File validation error: Content does not match expected Word (.doc) document signature.';
           }
           break;
         case 'xls':
-          if (fileBytes.length >= 4) {
-            final isOle = fileBytes[0] == 0xD0 && fileBytes[1] == 0xCF && fileBytes[2] == 0x11 && fileBytes[3] == 0xE0;
-            final isZip = fileBytes[0] == 0x50 && fileBytes[1] == 0x4B && fileBytes[2] == 0x03 && fileBytes[3] == 0x04;
-            if (!isOle && !isZip) {
-              return 'File validation error: Content does not match expected Excel spreadsheet signature.';
+          if (fileBytes.length >= 2 && fileBytes[0] == 0x50 && fileBytes[1] == 0x4B) {
+            return 'File validation error: ZIP archive or OpenXML file disguised as legacy Excel (.xls) spreadsheet is not permitted.';
+          }
+          final isBiffBof = fileBytes.length >= 2 &&
+              fileBytes[0] == 0x09 &&
+              (fileBytes[1] == 0x08 || fileBytes[1] == 0x04 || fileBytes[1] == 0x02 || fileBytes[1] == 0x00);
+          final isOleXls = fileBytes.length >= 4 &&
+              fileBytes[0] == 0xD0 &&
+              fileBytes[1] == 0xCF &&
+              fileBytes[2] == 0x11 &&
+              fileBytes[3] == 0xE0;
+          if (isOleXls) {
+            final hasWordDocUtf16 = _containsSubsequence(fileBytes, const [
+              0x57, 0x00, 0x6F, 0x00, 0x72, 0x00, 0x64, 0x00,
+              0x44, 0x00, 0x6F, 0x00, 0x63, 0x00, 0x75, 0x00,
+              0x6D, 0x00, 0x65, 0x00, 0x6E, 0x00, 0x74, 0x00
+            ]);
+            final hasWordDocAscii = _containsSubsequence(
+              fileBytes,
+              const [0x57, 0x6F, 0x72, 0x64, 0x44, 0x6F, 0x63, 0x75, 0x6D, 0x65, 0x6E, 0x74],
+            );
+            final hasWorkbookUtf16 = _containsSubsequence(fileBytes, const [
+              0x57, 0x00, 0x6F, 0x00, 0x72, 0x00, 0x6B, 0x00,
+              0x62, 0x00, 0x6F, 0x00, 0x6F, 0x00, 0x6B, 0x00
+            ]);
+            final hasWorkbookAscii = _containsSubsequence(
+              fileBytes,
+              const [0x57, 0x6F, 0x72, 0x6B, 0x62, 0x6F, 0x6F, 0x6B],
+            );
+            final hasBookUtf16 = _containsSubsequence(fileBytes, const [
+              0x42, 0x00, 0x6F, 0x00, 0x6F, 0x00, 0x6B, 0x00
+            ]);
+            final hasBookAscii = _containsSubsequence(fileBytes, const [0x42, 0x6F, 0x6F, 0x6B]);
+
+            final hasWord = hasWordDocUtf16 || hasWordDocAscii;
+            final hasExcel = hasWorkbookUtf16 || hasWorkbookAscii || hasBookUtf16 || hasBookAscii;
+
+            if (hasWord && !hasExcel) {
+              return 'File validation error: Content is a Word document (.doc) renamed as an Excel (.xls) spreadsheet.';
             }
+            if (!hasExcel) {
+              return 'File validation error: Content does not match expected Excel (.xls) spreadsheet signature.';
+            }
+          } else if (!isBiffBof) {
+            return 'File validation error: Content does not match expected Excel (.xls) spreadsheet signature.';
           }
           break;
         case 'txt':
