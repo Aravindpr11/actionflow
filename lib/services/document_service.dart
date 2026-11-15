@@ -335,6 +335,23 @@ class DocumentService {
     'txt',
   };
 
+  /// Scans [bytes] up to [maxScan] length to check if [pattern] sequence exists.
+  static bool _containsSubsequence(List<int> bytes, List<int> pattern, [int maxScan = 4096]) {
+    final limit = min(bytes.length, maxScan);
+    if (pattern.isEmpty || limit < pattern.length) return false;
+    for (int i = 0; i <= limit - pattern.length; i++) {
+      bool match = true;
+      for (int j = 0; j < pattern.length; j++) {
+        if (bytes[i + j] != pattern[j]) {
+          match = false;
+          break;
+        }
+      }
+      if (match) return true;
+    }
+    return false;
+  }
+
   /// Validates file type, size, and optional magic-byte content. Returns null if valid, or an error string if invalid.
   static String? validateFile({
     required String fileName,
@@ -376,6 +393,11 @@ class DocumentService {
           fileBytes[3] == 0x46) {
         return 'Security Violation: Executable ELF binary disguised as .$ext is not permitted.';
       }
+      if (fileBytes.length >= 4 &&
+          ((fileBytes[0] == 0xCA && fileBytes[1] == 0xFE && fileBytes[2] == 0xBA && fileBytes[3] == 0xBE) ||
+           (fileBytes[0] == 0xCF && fileBytes[1] == 0xFA && fileBytes[2] == 0xED && fileBytes[3] == 0xFE))) {
+        return 'Security Violation: Executable Mach-O binary disguised as .$ext is not permitted.';
+      }
 
       // 2. Specific format magic byte validation
       switch (ext) {
@@ -410,7 +432,7 @@ class DocumentService {
           }
           break;
         case 'webp':
-          // WebP magic: 'RIFF' at 0..3
+          // WebP magic: 'RIFF' at 0..3 and 'WEBP' at 8..11 (if length >= 12)
           if (fileBytes.length < 4 ||
               fileBytes[0] != 0x52 ||
               fileBytes[1] != 0x49 ||
@@ -418,16 +440,81 @@ class DocumentService {
               fileBytes[3] != 0x46) {
             return 'File validation error: Content does not match expected WEBP signature.';
           }
+          if (fileBytes.length >= 12 &&
+              (fileBytes[8] != 0x57 ||
+               fileBytes[9] != 0x45 ||
+               fileBytes[10] != 0x42 ||
+               fileBytes[11] != 0x50)) {
+            return 'File validation error: RIFF container does not contain valid WEBP header.';
+          }
           break;
         case 'docx':
-        case 'xlsx':
-          // Modern Office OpenXML is a ZIP container: 'PK\x03\x04' (0x50, 0x4B, 0x03, 0x04)
+          // DOCX must be a ZIP container starting with PK\x03\x04 AND contain OpenXML markers (word/ or [Content_Types].xml)
           if (fileBytes.length < 4 ||
               fileBytes[0] != 0x50 ||
               fileBytes[1] != 0x4B ||
               fileBytes[2] != 0x03 ||
               fileBytes[3] != 0x04) {
-            return 'File validation error: Content does not match expected Office OpenXML signature.';
+            return 'File validation error: Content does not match expected DOCX ZIP container.';
+          }
+          final hasWordMarker = _containsSubsequence(fileBytes, const [0x77, 0x6F, 0x72, 0x64, 0x2F]); // 'word/'
+          final hasContentTypesDocx = _containsSubsequence(fileBytes, const [
+            0x5B, 0x43, 0x6F, 0x6E, 0x74, 0x65, 0x6E, 0x74, 0x5F, 0x54, 0x79, 0x70, 0x65, 0x73, 0x5D, 0x2E, 0x78, 0x6D, 0x6C
+          ]); // '[Content_Types].xml'
+          if (!hasWordMarker && !hasContentTypesDocx) {
+            return 'File validation error: File is a generic ZIP archive, not a valid Word (.docx) document.';
+          }
+          break;
+        case 'xlsx':
+          // XLSX must be a ZIP container starting with PK\x03\x04 AND contain OpenXML markers (xl/ or [Content_Types].xml)
+          if (fileBytes.length < 4 ||
+              fileBytes[0] != 0x50 ||
+              fileBytes[1] != 0x4B ||
+              fileBytes[2] != 0x03 ||
+              fileBytes[3] != 0x04) {
+            return 'File validation error: Content does not match expected XLSX ZIP container.';
+          }
+          final hasXlMarker = _containsSubsequence(fileBytes, const [0x78, 0x6C, 0x2F]); // 'xl/'
+          final hasContentTypesXlsx = _containsSubsequence(fileBytes, const [
+            0x5B, 0x43, 0x6F, 0x6E, 0x74, 0x65, 0x6E, 0x74, 0x5F, 0x54, 0x79, 0x70, 0x65, 0x73, 0x5D, 0x2E, 0x78, 0x6D, 0x6C
+          ]); // '[Content_Types].xml'
+          if (!hasXlMarker && !hasContentTypesXlsx) {
+            return 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
+          }
+          break;
+        case 'doc':
+          if (fileBytes.length >= 4) {
+            final isOle = fileBytes[0] == 0xD0 && fileBytes[1] == 0xCF && fileBytes[2] == 0x11 && fileBytes[3] == 0xE0;
+            final isZip = fileBytes[0] == 0x50 && fileBytes[1] == 0x4B && fileBytes[2] == 0x03 && fileBytes[3] == 0x04;
+            if (!isOle && !isZip) {
+              return 'File validation error: Content does not match expected Word document signature.';
+            }
+          }
+          break;
+        case 'xls':
+          if (fileBytes.length >= 4) {
+            final isOle = fileBytes[0] == 0xD0 && fileBytes[1] == 0xCF && fileBytes[2] == 0x11 && fileBytes[3] == 0xE0;
+            final isZip = fileBytes[0] == 0x50 && fileBytes[1] == 0x4B && fileBytes[2] == 0x03 && fileBytes[3] == 0x04;
+            if (!isOle && !isZip) {
+              return 'File validation error: Content does not match expected Excel spreadsheet signature.';
+            }
+          }
+          break;
+        case 'txt':
+        case 'csv':
+          // Plain text / CSV files must not start with binary executable or archive signatures
+          if (fileBytes.length >= 4 &&
+              ((fileBytes[0] == 0x50 && fileBytes[1] == 0x4B && fileBytes[2] == 0x03 && fileBytes[3] == 0x04) ||
+               (fileBytes[0] == 0x25 && fileBytes[1] == 0x50 && fileBytes[2] == 0x44 && fileBytes[3] == 0x46) ||
+               (fileBytes[0] == 0x89 && fileBytes[1] == 0x50 && fileBytes[2] == 0x4E && fileBytes[3] == 0x47))) {
+            return 'File validation error: Binary file disguised as plain text / CSV is not permitted.';
+          }
+          // Must not contain null bytes in the scanned sample (first 1024 bytes)
+          final sampleLimit = min(fileBytes.length, 1024);
+          for (int i = 0; i < sampleLimit; i++) {
+            if (fileBytes[i] == 0x00) {
+              return 'File validation error: Binary control characters detected in plain text / CSV file.';
+            }
           }
           break;
       }

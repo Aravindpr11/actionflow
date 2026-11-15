@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:action_flow/features/requests/widgets/request_filter_bar.dart';
 import 'package:action_flow/services/document_service.dart';
 import 'package:flutter/material.dart';
@@ -113,15 +114,109 @@ void main() {
         isNull,
       );
 
-      // Valid Office OpenXML (.xlsx / .docx) PK zip header
-      final validOfficeBytes = [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00];
+      // Generic ZIP archive without OpenXML markers renamed to .xlsx or .docx must be REJECTED
+      final genericZipBytes = [0x50, 0x4B, 0x03, 0x04, 0x14, 0x00, 0x08, 0x00, 0x00, 0x00];
+      final genericDocxResult = DocumentService.validateFile(
+        fileName: 'report.docx',
+        fileSize: genericZipBytes.length,
+        fileBytes: genericZipBytes,
+      );
+      expect(genericDocxResult, contains('generic ZIP archive, not a valid Word'));
+
+      final genericXlsxResult = DocumentService.validateFile(
+        fileName: 'audit.xlsx',
+        fileSize: genericZipBytes.length,
+        fileBytes: genericZipBytes,
+      );
+      expect(genericXlsxResult, contains('generic ZIP archive, not a valid Excel'));
+
+      // Genuine DOCX with OpenXML markers ('PK\x03\x04' + '[Content_Types].xml' + 'word/')
+      final genuineDocxBytes = <int>[
+        0x50, 0x4B, 0x03, 0x04,
+        ...utf8.encode('[Content_Types].xml'),
+        ...utf8.encode('word/document.xml'),
+      ];
       expect(
         DocumentService.validateFile(
-          fileName: 'audit.xlsx',
-          fileSize: validOfficeBytes.length,
-          fileBytes: validOfficeBytes,
+          fileName: 'hsse_policy.docx',
+          fileSize: genuineDocxBytes.length,
+          fileBytes: genuineDocxBytes,
         ),
         isNull,
+      );
+
+      // Genuine XLSX with OpenXML markers ('PK\x03\x04' + 'xl/workbook.xml')
+      final genuineXlsxBytes = <int>[
+        0x50, 0x4B, 0x03, 0x04,
+        ...utf8.encode('xl/workbook.xml'),
+      ];
+      expect(
+        DocumentService.validateFile(
+          fileName: 'incident_metrics.xlsx',
+          fileSize: genuineXlsxBytes.length,
+          fileBytes: genuineXlsxBytes,
+        ),
+        isNull,
+      );
+
+      // WebP signature validation: RIFF container with WEBP identifier
+      final validWebpBytes = [
+        0x52, 0x49, 0x46, 0x46, // RIFF
+        0x20, 0x00, 0x00, 0x00, // length
+        0x57, 0x45, 0x42, 0x50, // WEBP
+      ];
+      expect(
+        DocumentService.validateFile(
+          fileName: 'hazard_preview.webp',
+          fileSize: validWebpBytes.length,
+          fileBytes: validWebpBytes,
+        ),
+        isNull,
+      );
+
+      final invalidWebpBytes = [
+        0x52, 0x49, 0x46, 0x46, // RIFF
+        0x20, 0x00, 0x00, 0x00,
+        0x41, 0x56, 0x49, 0x20, // AVI (not WEBP)
+      ];
+      expect(
+        DocumentService.validateFile(
+          fileName: 'fake.webp',
+          fileSize: invalidWebpBytes.length,
+          fileBytes: invalidWebpBytes,
+        ),
+        contains('RIFF container does not contain valid WEBP header'),
+      );
+
+      // Plain text and CSV validation
+      final validCsvBytes = utf8.encode('ActionID,Subject,Status\nACT-1001,Inspection,Open\n');
+      expect(
+        DocumentService.validateFile(
+          fileName: 'actions.csv',
+          fileSize: validCsvBytes.length,
+          fileBytes: validCsvBytes,
+        ),
+        isNull,
+      );
+
+      final binaryInCsvBytes = [0x50, 0x4B, 0x03, 0x04, 0x00, 0x00]; // ZIP header disguised as CSV
+      expect(
+        DocumentService.validateFile(
+          fileName: 'data.csv',
+          fileSize: binaryInCsvBytes.length,
+          fileBytes: binaryInCsvBytes,
+        ),
+        contains('Binary file disguised as plain text / CSV is not permitted'),
+      );
+
+      final nullByteInTxtBytes = [0x41, 0x42, 0x00, 0x43]; // Contains binary null byte
+      expect(
+        DocumentService.validateFile(
+          fileName: 'notes.txt',
+          fileSize: nullByteInTxtBytes.length,
+          fileBytes: nullByteInTxtBytes,
+        ),
+        contains('Binary control characters detected in plain text / CSV file'),
       );
     });
   });

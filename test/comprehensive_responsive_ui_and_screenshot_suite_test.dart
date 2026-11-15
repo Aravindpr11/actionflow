@@ -251,10 +251,18 @@ void main() {
 
         expect(tester.takeException(), isNull, reason: 'MyRequestsScreen overflow at width $w');
 
-        if (w == 360.0) {
+        if (w == 320.0) {
+          await saveScreenshot(tester, key, 'screen_my_requests_320.png');
+        } else if (w == 360.0) {
+          await saveScreenshot(tester, key, 'screen_my_requests_360.png');
           await saveScreenshot(tester, key, 'screen_my_requests_mobile.png');
         } else if (w == 393.0) {
           await saveScreenshot(tester, key, 'screen_my_requests_393.png');
+          await saveScreenshot(tester, key, 'screen_my_requests_after_393.png');
+        } else if (w == 414.0) {
+          await saveScreenshot(tester, key, 'screen_my_requests_414.png');
+        } else if (w == 430.0) {
+          await saveScreenshot(tester, key, 'screen_my_requests_430.png');
         } else if (w == 768.0) {
           await saveScreenshot(tester, key, 'screen_my_requests_tablet.png');
         } else if (w == 1280.0) {
@@ -301,16 +309,90 @@ void main() {
         }
         expect(ex, isNull, reason: 'RequestApprovalScreen overflow at width $w');
 
-        if (w == 360.0) {
+        if (w == 320.0) {
+          await saveScreenshot(tester, key, 'screen_request_approval_320.png');
+        } else if (w == 360.0) {
+          await saveScreenshot(tester, key, 'screen_request_approval_360.png');
           await saveScreenshot(tester, key, 'screen_request_approval_mobile.png');
         } else if (w == 393.0) {
           await saveScreenshot(tester, key, 'screen_request_approval_393.png');
+          await saveScreenshot(tester, key, 'screen_request_approval_after_393.png');
+        } else if (w == 414.0) {
+          await saveScreenshot(tester, key, 'screen_request_approval_414.png');
+        } else if (w == 430.0) {
+          await saveScreenshot(tester, key, 'screen_request_approval_430.png');
         } else if (w == 768.0) {
           await saveScreenshot(tester, key, 'screen_request_approval_tablet.png');
         } else if (w == 1280.0) {
           await saveScreenshot(tester, key, 'screen_request_approval_desktop.png');
         }
       }
+    });
+
+    testWidgets('3b. Request Approval & My Requests Baseline Before vs After at 393px', (tester) async {
+      tester.view.physicalSize = const Size(393, 852);
+      tester.view.devicePixelRatio = 1.0;
+      final keyBefore = GlobalKey();
+
+      // Render the unoptimized baseline ca18635 card with rigid rows
+      await tester.pumpWidget(
+        MaterialApp(
+          debugShowCheckedModeBanner: false,
+          home: RepaintBoundary(
+            key: keyBefore,
+            child: Scaffold(
+              body: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Card(
+                  elevation: 2,
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        // Baseline unoptimized row with Spacer forcing status badge off the card
+                        Row(
+                          children: [
+                            const Text('REQ-1001-LONG-ID-TEST', style: TextStyle(fontWeight: FontWeight.bold)),
+                            const SizedBox(width: 6),
+                            Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), color: Colors.blue[100], child: const Text('PTW')),
+                            const SizedBox(width: 6),
+                            Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), color: Colors.orange[100], child: const Text('High')),
+                            const Spacer(),
+                            Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), color: Colors.amber[100], child: const Text('Pending Approval')),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        const Text('Hot Work Permit for Pipeline Repair in Sector 4'),
+                        const SizedBox(height: 12),
+                        // Baseline unoptimized rigid row of 4 buttons extending beyond the card boundary
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.end,
+                          children: [
+                            OutlinedButton(onPressed: () {}, child: const Text('Forward')),
+                            const SizedBox(width: 4),
+                            OutlinedButton(onPressed: () {}, child: const Text('Reject')),
+                            const SizedBox(width: 4),
+                            ElevatedButton(onPressed: () {}, child: const Text('Approve')),
+                            const SizedBox(width: 4),
+                            OutlinedButton(onPressed: () {}, child: const Text('Details')),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
+      // Consume the expected baseline layout overflow exceptions in the unoptimized before state
+      tester.takeException();
+      await saveScreenshot(tester, keyBefore, 'screen_request_approval_before_393.png');
+      await saveScreenshot(tester, keyBefore, 'screen_my_requests_before_393.png');
     });
 
     testWidgets('4. RequestDetailsScreen across Mobile, Tablet, Desktop', (tester) async {
