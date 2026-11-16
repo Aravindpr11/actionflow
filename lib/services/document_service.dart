@@ -255,6 +255,48 @@ class MockDocumentStore {
   }
 }
 
+/// A bounded [OutputMemoryStream] that enforces strict byte limits during decompression.
+/// Prevents memory exhaustion or decompression bombs by aborting decompression
+/// the instant written bytes exceed [maxBytes].
+class BoundedOutputMemoryStream extends OutputMemoryStream {
+  final int maxBytes;
+
+  BoundedOutputMemoryStream({required this.maxBytes, super.size});
+
+  void _checkLimit(int additional) {
+    if (length + additional > maxBytes) {
+      throw ArchiveException(
+        'Decompression limit exceeded: attempted to decompress ${length + additional} bytes (max: $maxBytes bytes). Possible zip bomb.',
+      );
+    }
+  }
+
+  @override
+  void writeByte(int value) {
+    _checkLimit(1);
+    super.writeByte(value);
+  }
+
+  @override
+  void writeBytes(List<int> bytes, {int? length}) {
+    final len = length ?? bytes.length;
+    _checkLimit(len);
+    super.writeBytes(bytes, length: length);
+  }
+
+  @override
+  void writeStream(InputStream stream) {
+    _checkLimit(stream.length);
+    super.writeStream(stream);
+  }
+
+  @override
+  void writeBackReference(int distance, int count) {
+    _checkLimit(count);
+    super.writeBackReference(distance, count);
+  }
+}
+
 /// Service managing Document storage, metadata, permissions, and sharing
 class DocumentService {
   DocumentService({SupabaseClient? client}) : _clientOverride = client;
@@ -346,6 +388,9 @@ class DocumentService {
   /// Maximum uncompressed size permitted for any single entry in an OpenXML ZIP archive (50 MB).
   static const int maxSingleEntrySize = 50 * 1024 * 1024;
 
+  /// Maximum uncompressed size permitted for [Content_Types].xml (512 KB).
+  static const int maxContentTypesSize = 512 * 1024;
+
   /// Scans [bytes] up to [maxScan] length to check if [pattern] sequence exists.
   static bool _containsSubsequence(List<int> bytes, List<int> pattern, [int maxScan = 65536]) {
     final limit = min(bytes.length, maxScan);
@@ -366,6 +411,8 @@ class DocumentService {
   /// Inspects a ZIP archive's package structure to verify OpenXML document contents
   /// with comprehensive zip bomb, path traversal, entry limits, and content-type enforcement.
   /// All decompression occurs strictly in-memory without any filesystem extraction.
+  /// Enforces early central directory parsing, entry count bounds, declared uncompressed limits,
+  /// and stream-bounded decompression that aborts the instant byte limits are exceeded.
   /// Returns null if valid for the given [expectedType] ('docx' or 'xlsx'),
   /// or a descriptive error message if invalid.
   static String? _validateOpenXmlPackage(List<int> bytes, String expectedType) {
@@ -377,64 +424,51 @@ class DocumentService {
       return 'File validation error: Content does not match expected OpenXML ZIP container.';
     }
 
-    Archive archive;
+    // Step 1: Early Central Directory inspection via ZipDirectory
+    // Parses central directory headers without decompressing or allocating entries in memory.
+    final zipDir = ZipDirectory();
     try {
-      archive = ZipDecoder().decodeBytes(bytes, verify: false);
-      if (bytes.length < 30 || archive.files.isEmpty) {
+      zipDir.read(InputMemoryStream(bytes));
+      if (zipDir.filePosition < 0 || zipDir.fileHeaders.isEmpty) {
         return 'File validation error: Corrupt or malformed ZIP container for .$expectedType file.';
       }
-    } catch (e) {
+    } catch (_) {
       return 'File validation error: Corrupt or malformed ZIP container for .$expectedType file.';
     }
 
-    // 1. ZIP bomb protection: entry count check
-    if (archive.files.length > maxZipEntries) {
-      return 'File validation error: ZIP archive contains excessive entries (${archive.files.length} > $maxZipEntries), possible zip bomb.';
+    // Step 2: Earliest entry count check (checked as early as possible before processing files)
+    final entryCount = max(zipDir.totalCentralDirectoryEntries, zipDir.fileHeaders.length);
+    if (entryCount > maxZipEntries) {
+      return 'File validation error: ZIP archive contains excessive entries ($entryCount > $maxZipEntries), possible zip bomb.';
     }
 
-    bool hasContentTypes = false;
+    // Step 3: Inspect declared uncompressed sizes and path traversal on all headers before decompression
+    int totalDeclaredSize = 0;
+    bool hasContentTypesHeader = false;
     bool hasWordPart = false;
     bool hasExcelPart = false;
-    bool hasWordContentType = false;
-    bool hasExcelContentType = false;
-    int totalDecompressedSize = 0;
 
-    for (final file in archive.files) {
-      // 2. Individual decompressed size & integer overflow checks
-      if (file.size < 0 || file.size > maxSingleEntrySize) {
-        return 'File validation error: ZIP entry (${file.name}) uncompressed size exceeds safety limit (${file.size} bytes).';
+    for (final header in zipDir.fileHeaders) {
+      // Enforce individual entry declared size limits and guard against integer overflows
+      if (header.uncompressedSize < 0 || header.uncompressedSize > maxSingleEntrySize) {
+        return 'File validation error: ZIP entry (${header.filename}) uncompressed size exceeds safety limit (${header.uncompressedSize} bytes).';
       }
 
-      totalDecompressedSize += file.size;
-      // 3. ZIP bomb protection: total decompressed size check
-      if (totalDecompressedSize > maxTotalDecompressedSize) {
-        return 'File validation error: ZIP archive total uncompressed size exceeds safety limit (${(totalDecompressedSize / (1024 * 1024)).toStringAsFixed(1)} MB > 100 MB), possible zip bomb.';
+      totalDeclaredSize += header.uncompressedSize;
+      if (totalDeclaredSize > maxTotalDecompressedSize) {
+        return 'File validation error: ZIP archive total uncompressed size exceeds safety limit (${(totalDeclaredSize / (1024 * 1024)).toStringAsFixed(1)} MB > 100 MB), possible zip bomb.';
       }
 
-      // 4. Path traversal protection: normalize slashes, reject '..' segments or absolute root paths
-      final rawName = file.name;
-      final normalized = rawName.replaceAll('\\', '/');
+      // Path traversal protection: normalize slashes, reject '..' segments, absolute roots, or drive letters
+      final normalized = header.filename.replaceAll('\\', '/');
       if (normalized.startsWith('/') ||
           RegExp(r'^[a-zA-Z]:').hasMatch(normalized) ||
           normalized.split('/').any((seg) => seg == '..')) {
-        return 'File validation error: Path traversal sequence detected in ZIP entry ($rawName).';
+        return 'File validation error: Path traversal sequence detected in ZIP entry (${header.filename}).';
       }
 
-      // 5. Inspect required Office package entries
       if (normalized == '[Content_Types].xml' || normalized.endsWith('/[Content_Types].xml')) {
-        hasContentTypes = true;
-        try {
-          if (file.size <= 512 * 1024) {
-            final contentBytes = file.content as List<int>;
-            final contentStr = utf8.decode(contentBytes, allowMalformed: true);
-            if (contentStr.contains('wordprocessingml')) {
-              hasWordContentType = true;
-            }
-            if (contentStr.contains('spreadsheetml')) {
-              hasExcelContentType = true;
-            }
-          }
-        } catch (_) {}
+        hasContentTypesHeader = true;
       }
       if (normalized.startsWith('word/') || normalized.contains('/word/')) {
         hasWordPart = true;
@@ -444,26 +478,91 @@ class DocumentService {
       }
     }
 
-    if (!hasContentTypes) {
+    // Step 4: Strict package structure validation
+    if (!hasContentTypesHeader) {
       return expectedType == 'docx'
           ? 'File validation error: File is a generic ZIP archive, not a valid Word (.docx) document.'
           : 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
     }
 
-    // 6. Strict format verification combining package directory entries & [Content_Types].xml
+    // Reject archives containing conflicting Word and Excel package structures
+    if (hasWordPart && hasExcelPart) {
+      return 'File validation error: Archive contains conflicting Word and Excel package structures.';
+    }
+
+    // Step 5: Decode archive container safely to inspect [Content_Types].xml
+    Archive archive;
+    try {
+      archive = ZipDecoder().decodeBytes(bytes, verify: false);
+      if (archive.files.isEmpty) {
+        return 'File validation error: Corrupt or malformed ZIP container for .$expectedType file.';
+      }
+    } catch (_) {
+      return 'File validation error: Corrupt or malformed ZIP container for .$expectedType file.';
+    }
+
+    ArchiveFile? contentTypesFile;
+    for (final file in archive.files) {
+      final norm = file.name.replaceAll('\\', '/');
+      if (norm == '[Content_Types].xml' || norm.endsWith('/[Content_Types].xml')) {
+        contentTypesFile = file;
+        break;
+      }
+    }
+
+    if (contentTypesFile == null) {
+      return expectedType == 'docx'
+          ? 'File validation error: File is a generic ZIP archive, not a valid Word (.docx) document.'
+          : 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
+    }
+
+    // Enforce declared size ceiling on [Content_Types].xml before decompression
+    if (contentTypesFile.size < 0 || contentTypesFile.size > maxContentTypesSize) {
+      return 'File validation error: [Content_Types].xml uncompressed size exceeds safety limit (${contentTypesFile.size} bytes).';
+    }
+
+    // Step 6: Controlled bounded decompression of [Content_Types].xml
+    // Decompresses strictly in-memory into BoundedOutputMemoryStream.
+    // If actual decompressed output exceeds maxContentTypesSize (512 KB), decompression aborts immediately.
+    final boundedOut = BoundedOutputMemoryStream(maxBytes: maxContentTypesSize);
+    try {
+      contentTypesFile.decompress(boundedOut);
+    } catch (e) {
+      return 'File validation error: ZIP decompression limit exceeded during processing, possible zip bomb.';
+    }
+
+    final contentBytes = boundedOut.getBytes();
+    if (contentBytes.isEmpty) {
+      return 'File validation error: [Content_Types].xml is empty or corrupt.';
+    }
+
+    final contentStr = utf8.decode(contentBytes, allowMalformed: true);
+    final hasWordContentType = contentStr.contains('wordprocessingml');
+    final hasExcelContentType = contentStr.contains('spreadsheetml');
+
+    if (hasWordContentType && hasExcelContentType) {
+      return 'File validation error: Archive contains conflicting Word and Excel package structures.';
+    }
+
     if (expectedType == 'docx') {
       if ((hasExcelPart || hasExcelContentType) && (!hasWordPart && !hasWordContentType)) {
         return 'File validation error: Content is an Excel spreadsheet (.xlsx) renamed as a Word (.docx) document.';
       }
-      if (!hasWordPart && !hasWordContentType) {
+      if (!hasWordPart) {
         return 'File validation error: File is a generic ZIP archive, not a valid Word (.docx) document.';
+      }
+      if (!hasWordContentType) {
+        return 'File validation error: [Content_Types].xml does not define WordprocessingML content type.';
       }
     } else if (expectedType == 'xlsx') {
       if ((hasWordPart || hasWordContentType) && (!hasExcelPart && !hasExcelContentType)) {
         return 'File validation error: Content is a Word document (.docx) renamed as an Excel (.xlsx) spreadsheet.';
       }
-      if (!hasExcelPart && !hasExcelContentType) {
+      if (!hasExcelPart) {
         return 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
+      }
+      if (!hasExcelContentType) {
+        return 'File validation error: [Content_Types].xml does not define SpreadsheetML content type.';
       }
     }
 

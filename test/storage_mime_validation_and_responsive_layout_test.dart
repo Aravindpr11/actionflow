@@ -125,9 +125,10 @@ void main() {
         isNull,
       );
 
-      // 1. Genuine DOCX package (contains [Content_Types].xml and word/document.xml)
+      // 1. Genuine DOCX package (contains [Content_Types].xml with WordprocessingML and word/document.xml)
       final genuineDocxBytes = _buildZip({
-        '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>',
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
         'word/document.xml': '<?xml version="1.0" encoding="UTF-8"?><w:document></w:document>',
       });
       expect(
@@ -140,9 +141,10 @@ void main() {
         reason: 'Genuine DOCX package must be accepted.',
       );
 
-      // 2. Genuine XLSX package (contains [Content_Types].xml and xl/workbook.xml)
+      // 2. Genuine XLSX package (contains [Content_Types].xml with SpreadsheetML and xl/workbook.xml)
       final genuineXlsxBytes = _buildZip({
-        '[Content_Types].xml': '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"></Types>',
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
         'xl/workbook.xml': '<?xml version="1.0" encoding="UTF-8"?><workbook></workbook>',
       });
       expect(
@@ -437,6 +439,48 @@ void main() {
         fileBytes: xlsxContentInDocxArchive,
       );
       expect(xlsxInDocxResult, contains('Content is an Excel spreadsheet (.xlsx) renamed as a Word (.docx) document.'));
+
+      // g) Conflicting Word and Excel package structures
+      final conflictingArchive = _buildZip({
+        '[Content_Types].xml':
+            '<Types><Override PartName="/word/doc.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/xl/sheet.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
+        'word/document.xml': '<w:document/>',
+        'xl/workbook.xml': '<workbook/>',
+      });
+      final conflictResult = DocumentService.validateFile(
+        fileName: 'conflict.docx',
+        fileSize: conflictingArchive.length,
+        fileBytes: conflictingArchive,
+      );
+      expect(conflictResult, contains('Archive contains conflicting Word and Excel package structures.'));
+
+      // h) Corrupt Office package: corrupted [Content_Types].xml
+      final corruptOfficeZip = _buildZip({
+        '[Content_Types].xml': '',
+        'word/document.xml': '<w:document/>',
+      });
+      final corruptPackageResult = DocumentService.validateFile(
+        fileName: 'corrupt.docx',
+        fileSize: corruptOfficeZip.length,
+        fileBytes: corruptOfficeZip,
+      );
+      expect(corruptPackageResult, contains('is empty or corrupt'));
+
+      // i) ZIP Bomb Sample: [Content_Types].xml declared size forged small (200 bytes) but decompresses to > 512 KB
+      final largeContentXml = '<?xml version="1.0"?><Types>' + ('<!-- padding -->' * 40000) + '</Types>';
+      final largeBytes = utf8.encode(largeContentXml);
+      final bombEntry = ArchiveFile.bytes('[Content_Types].xml', largeBytes);
+      bombEntry.size = 200; // Forged declared size passes declared size check
+      final bombArchive = Archive();
+      bombArchive.addFile(bombEntry);
+      bombArchive.addFile(ArchiveFile.bytes('word/document.xml', utf8.encode('<w:document/>')));
+      final bombZipBytes = ZipEncoder().encode(bombArchive)!;
+      final bombResult = DocumentService.validateFile(
+        fileName: 'decompression_bomb.docx',
+        fileSize: bombZipBytes.length,
+        fileBytes: bombZipBytes,
+      );
+      expect(bombResult, contains('ZIP decompression limit exceeded during processing, possible zip bomb.'));
 
       // WebP signature validation: RIFF container with WEBP identifier
       final validWebpBytes = [
