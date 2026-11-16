@@ -610,24 +610,46 @@ class DocumentService {
       return 'File validation error: _rels/.rels contains malformed or invalid XML.';
     }
 
+    const opcRelationshipsNamespace = 'http://schemas.openxmlformats.org/package/2006/relationships';
+
     final root = relsXml.rootElement;
     if (root.name.local != 'Relationships') {
       return 'File validation error: _rels/.rels root element must be <Relationships>.';
     }
+    if (root.namespaceUri != opcRelationshipsNamespace) {
+      return 'File validation error: _rels/.rels root element has invalid or missing OPC namespace (${root.namespaceUri ?? 'none'}).';
+    }
 
-    final relationshipElements = root.childElements.where((e) => e.name.local == 'Relationship');
-    if (relationshipElements.isEmpty) {
+    final childElements = root.childElements.toList();
+    if (childElements.isEmpty) {
       return 'File validation error: _rels/.rels contains no <Relationship> elements.';
     }
 
+    final Set<String> seenIds = <String>{};
     final List<String> officeDocTargets = [];
     bool hasWordRelTarget = false;
     bool hasExcelRelTarget = false;
 
-    for (final rel in relationshipElements) {
+    for (final rel in childElements) {
+      if (rel.name.local != 'Relationship') {
+        return 'File validation error: _rels/.rels contains unexpected child element <${rel.name.local}>.';
+      }
+      if (rel.namespaceUri != opcRelationshipsNamespace) {
+        return 'File validation error: _rels/.rels child relationship element has invalid namespace (${rel.namespaceUri ?? 'none'}).';
+      }
+
+      final id = rel.getAttribute('Id')?.trim() ?? '';
       final type = rel.getAttribute('Type')?.trim() ?? '';
       final target = rel.getAttribute('Target')?.trim() ?? '';
       final targetMode = rel.getAttribute('TargetMode')?.trim() ?? 'Internal';
+
+      if (id.isEmpty) {
+        return 'File validation error: _rels/.rels contains relationship with missing or empty Id attribute.';
+      }
+
+      if (!seenIds.add(id)) {
+        return 'File validation error: _rels/.rels contains duplicate relationship Id ($id).';
+      }
 
       if (type.isEmpty || target.isEmpty) {
         return 'File validation error: _rels/.rels contains relationship with missing Type or Target attribute.';
