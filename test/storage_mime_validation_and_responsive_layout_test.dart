@@ -34,6 +34,7 @@ void main() {
       );
       expect(DocumentService.resolveMimeType('data.csv'), equals('text/csv'));
       expect(DocumentService.resolveMimeType('notes.txt'), equals('text/plain'));
+      expect(DocumentService.resolveMimeType('contract.rtf'), equals('application/rtf'));
     });
 
     test('resolveMimeType falls back safely to application/octet-stream for unknown/extensionless files', () {
@@ -244,7 +245,7 @@ void main() {
       );
       expect(exeAsXlsx, contains('Security Violation: Executable file disguised as .xlsx is not permitted.'));
 
-      // 9. Legacy Office: Distinguishing DOC from XLS
+      // 9. Legacy Office: Distinguishing DOC from XLS, and Strict RTF Separation
       // Genuine Word .doc (OLE CFB with WordDocument stream)
       final genuineDocBytes = <int>[
         0xD0, 0xCF, 0x11, 0xE0, 0xA1, 0xB1, 0x1A, 0xE1,
@@ -259,16 +260,35 @@ void main() {
         isNull,
       );
 
-      // Genuine Word .doc (RTF format)
+      // RTF disguised under .doc MUST be rejected with explicit redirect error
       final genuineRtfBytes = utf8.encode(r'{\rtf1\ansi\deff0 Test RTF Word Document}');
+      final rtfUnderDocResult = DocumentService.validateFile(
+        fileName: 'legacy_procedure.doc',
+        fileSize: genuineRtfBytes.length,
+        fileBytes: genuineRtfBytes,
+      );
+      expect(
+        rtfUnderDocResult,
+        contains('RTF content disguised as legacy Word (.doc) document is not permitted. Please use the .rtf extension.'),
+      );
+
+      // Genuine RTF under .rtf MUST be accepted
       expect(
         DocumentService.validateFile(
-          fileName: 'legacy_procedure.doc',
+          fileName: 'agreement.rtf',
           fileSize: genuineRtfBytes.length,
           fileBytes: genuineRtfBytes,
         ),
         isNull,
       );
+
+      // Non-RTF disguised under .rtf MUST be rejected
+      final fakeRtfResult = DocumentService.validateFile(
+        fileName: 'fake.rtf',
+        fileSize: genuineDocBytes.length,
+        fileBytes: genuineDocBytes,
+      );
+      expect(fakeRtfResult, contains('Content does not match expected RTF signature'));
 
       // Genuine Excel .xls (OLE CFB with Workbook stream)
       final genuineXlsBytes = <int>[
@@ -331,6 +351,92 @@ void main() {
         fileBytes: genericZipBytes,
       );
       expect(zipAsXls, contains('ZIP archive or OpenXML file disguised as legacy Excel (.xls) spreadsheet'));
+
+      // 10. Advanced ZIP Archive Security (ZIP Bomb, Path Traversal, Entry Limits)
+      // a) ZIP Bomb: Excessive entries (> 1000 entries)
+      final excessiveEntriesArchive = Archive();
+      excessiveEntriesArchive.addFile(ArchiveFile('[Content_Types].xml', 10, utf8.encode('<Types/>')));
+      excessiveEntriesArchive.addFile(ArchiveFile('word/document.xml', 10, utf8.encode('<doc/>')));
+      for (int i = 0; i < 1005; i++) {
+        excessiveEntriesArchive.addFile(ArchiveFile('word/dummy_$i.xml', 1, const [0x20]));
+      }
+      final excessiveZipBytes = ZipEncoder().encode(excessiveEntriesArchive)!;
+      final excessiveResult = DocumentService.validateFile(
+        fileName: 'bomb.docx',
+        fileSize: excessiveZipBytes.length,
+        fileBytes: excessiveZipBytes,
+      );
+      expect(excessiveResult, contains('possible zip bomb'));
+
+      // b) ZIP Bomb: Single entry exceeding 50 MB
+      final hugeFileEntry = ArchiveFile.bytes('word/huge.xml', const [0x00]);
+      hugeFileEntry.size = 60 * 1024 * 1024; // 60 MB uncompressed size
+      final hugeArchive = Archive();
+      hugeArchive.addFile(ArchiveFile('[Content_Types].xml', 10, utf8.encode('<Types/>')));
+      hugeArchive.addFile(ArchiveFile('word/document.xml', 10, utf8.encode('<doc/>')));
+      hugeArchive.addFile(hugeFileEntry);
+      final hugeZipBytes = ZipEncoder().encode(hugeArchive)!;
+      final hugeResult = DocumentService.validateFile(
+        fileName: 'huge_entry.docx',
+        fileSize: hugeZipBytes.length,
+        fileBytes: hugeZipBytes,
+      );
+      expect(hugeResult, contains('uncompressed size exceeds safety limit'));
+
+      // c) ZIP Bomb: Total decompressed size exceeding 100 MB
+      final totalBombArchive = Archive();
+      totalBombArchive.addFile(ArchiveFile('[Content_Types].xml', 10, utf8.encode('<Types/>')));
+      totalBombArchive.addFile(ArchiveFile('word/document.xml', 10, utf8.encode('<doc/>')));
+      for (int i = 0; i < 3; i++) {
+        final f = ArchiveFile.bytes('word/part_$i.xml', const [0x00]);
+        f.size = 40 * 1024 * 1024; // 3 * 40MB = 120 MB > 100 MB
+        totalBombArchive.addFile(f);
+      }
+      final totalBombZipBytes = ZipEncoder().encode(totalBombArchive)!;
+      final totalBombResult = DocumentService.validateFile(
+        fileName: 'total_bomb.docx',
+        fileSize: totalBombZipBytes.length,
+        fileBytes: totalBombZipBytes,
+      );
+      expect(totalBombResult, contains('total uncompressed size exceeds safety limit'));
+
+      // d) Path Traversal: relative sequence in entry name (../../etc/passwd)
+      final relativeTraversalArchive = Archive();
+      relativeTraversalArchive.addFile(ArchiveFile('[Content_Types].xml', 10, utf8.encode('<Types/>')));
+      relativeTraversalArchive.addFile(ArchiveFile('word/document.xml', 10, utf8.encode('<doc/>')));
+      relativeTraversalArchive.addFile(ArchiveFile('../../etc/passwd', 10, utf8.encode('root:x:0:0')));
+      final relTraversalZipBytes = ZipEncoder().encode(relativeTraversalArchive)!;
+      final relTraversalResult = DocumentService.validateFile(
+        fileName: 'malicious_rel.docx',
+        fileSize: relTraversalZipBytes.length,
+        fileBytes: relTraversalZipBytes,
+      );
+      expect(relTraversalResult, contains('Path traversal sequence detected in ZIP entry'));
+
+      // e) Path Traversal: absolute path in entry name (/root/exploit.sh)
+      final absTraversalArchive = Archive();
+      absTraversalArchive.addFile(ArchiveFile('[Content_Types].xml', 10, utf8.encode('<Types/>')));
+      absTraversalArchive.addFile(ArchiveFile('word/document.xml', 10, utf8.encode('<doc/>')));
+      absTraversalArchive.addFile(ArchiveFile('/root/exploit.sh', 10, utf8.encode('#!/bin/sh')));
+      final absTraversalZipBytes = ZipEncoder().encode(absTraversalArchive)!;
+      final absTraversalResult = DocumentService.validateFile(
+        fileName: 'malicious_abs.docx',
+        fileSize: absTraversalZipBytes.length,
+        fileBytes: absTraversalZipBytes,
+      );
+      expect(absTraversalResult, contains('Path traversal sequence detected in ZIP entry'));
+
+      // f) Content-Types XML verification: DOCX package containing spreadsheetml ContentType
+      final xlsxContentInDocxArchive = _buildZip({
+        '[Content_Types].xml': '<Types><Override PartName="/doc.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
+        'generic.xml': '<content/>',
+      });
+      final xlsxInDocxResult = DocumentService.validateFile(
+        fileName: 'disguised.docx',
+        fileSize: xlsxContentInDocxArchive.length,
+        fileBytes: xlsxContentInDocxArchive,
+      );
+      expect(xlsxInDocxResult, contains('Content is an Excel spreadsheet (.xlsx) renamed as a Word (.docx) document.'));
 
       // WebP signature validation: RIFF container with WEBP identifier
       final validWebpBytes = [

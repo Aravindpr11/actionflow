@@ -328,6 +328,7 @@ class DocumentService {
     'docx',
     'xls',
     'xlsx',
+    'rtf',
     'png',
     'jpg',
     'jpeg',
@@ -335,6 +336,15 @@ class DocumentService {
     'csv',
     'txt',
   };
+
+  /// Maximum number of entries permitted in an OpenXML ZIP archive (zip bomb protection).
+  static const int maxZipEntries = 1000;
+
+  /// Maximum total uncompressed size permitted across all entries in an OpenXML ZIP archive (100 MB).
+  static const int maxTotalDecompressedSize = 100 * 1024 * 1024;
+
+  /// Maximum uncompressed size permitted for any single entry in an OpenXML ZIP archive (50 MB).
+  static const int maxSingleEntrySize = 50 * 1024 * 1024;
 
   /// Scans [bytes] up to [maxScan] length to check if [pattern] sequence exists.
   static bool _containsSubsequence(List<int> bytes, List<int> pattern, [int maxScan = 65536]) {
@@ -353,7 +363,9 @@ class DocumentService {
     return false;
   }
 
-  /// Inspects a ZIP archive's package structure to verify OpenXML document contents.
+  /// Inspects a ZIP archive's package structure to verify OpenXML document contents
+  /// with comprehensive zip bomb, path traversal, entry limits, and content-type enforcement.
+  /// All decompression occurs strictly in-memory without any filesystem extraction.
   /// Returns null if valid for the given [expectedType] ('docx' or 'xlsx'),
   /// or a descriptive error message if invalid.
   static String? _validateOpenXmlPackage(List<int> bytes, String expectedType) {
@@ -375,19 +387,59 @@ class DocumentService {
       return 'File validation error: Corrupt or malformed ZIP container for .$expectedType file.';
     }
 
+    // 1. ZIP bomb protection: entry count check
+    if (archive.files.length > maxZipEntries) {
+      return 'File validation error: ZIP archive contains excessive entries (${archive.files.length} > $maxZipEntries), possible zip bomb.';
+    }
+
     bool hasContentTypes = false;
     bool hasWordPart = false;
     bool hasExcelPart = false;
+    bool hasWordContentType = false;
+    bool hasExcelContentType = false;
+    int totalDecompressedSize = 0;
 
     for (final file in archive.files) {
-      final name = file.name.replaceAll('\\', '/');
-      if (name == '[Content_Types].xml' || name.endsWith('/[Content_Types].xml')) {
-        hasContentTypes = true;
+      // 2. Individual decompressed size & integer overflow checks
+      if (file.size < 0 || file.size > maxSingleEntrySize) {
+        return 'File validation error: ZIP entry (${file.name}) uncompressed size exceeds safety limit (${file.size} bytes).';
       }
-      if (name.startsWith('word/') || name.contains('/word/')) {
+
+      totalDecompressedSize += file.size;
+      // 3. ZIP bomb protection: total decompressed size check
+      if (totalDecompressedSize > maxTotalDecompressedSize) {
+        return 'File validation error: ZIP archive total uncompressed size exceeds safety limit (${(totalDecompressedSize / (1024 * 1024)).toStringAsFixed(1)} MB > 100 MB), possible zip bomb.';
+      }
+
+      // 4. Path traversal protection: normalize slashes, reject '..' segments or absolute root paths
+      final rawName = file.name;
+      final normalized = rawName.replaceAll('\\', '/');
+      if (normalized.startsWith('/') ||
+          RegExp(r'^[a-zA-Z]:').hasMatch(normalized) ||
+          normalized.split('/').any((seg) => seg == '..')) {
+        return 'File validation error: Path traversal sequence detected in ZIP entry ($rawName).';
+      }
+
+      // 5. Inspect required Office package entries
+      if (normalized == '[Content_Types].xml' || normalized.endsWith('/[Content_Types].xml')) {
+        hasContentTypes = true;
+        try {
+          if (file.size <= 512 * 1024) {
+            final contentBytes = file.content as List<int>;
+            final contentStr = utf8.decode(contentBytes, allowMalformed: true);
+            if (contentStr.contains('wordprocessingml')) {
+              hasWordContentType = true;
+            }
+            if (contentStr.contains('spreadsheetml')) {
+              hasExcelContentType = true;
+            }
+          }
+        } catch (_) {}
+      }
+      if (normalized.startsWith('word/') || normalized.contains('/word/')) {
         hasWordPart = true;
       }
-      if (name.startsWith('xl/') || name.contains('/xl/')) {
+      if (normalized.startsWith('xl/') || normalized.contains('/xl/')) {
         hasExcelPart = true;
       }
     }
@@ -398,18 +450,19 @@ class DocumentService {
           : 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
     }
 
+    // 6. Strict format verification combining package directory entries & [Content_Types].xml
     if (expectedType == 'docx') {
-      if (hasExcelPart && !hasWordPart) {
+      if ((hasExcelPart || hasExcelContentType) && (!hasWordPart && !hasWordContentType)) {
         return 'File validation error: Content is an Excel spreadsheet (.xlsx) renamed as a Word (.docx) document.';
       }
-      if (!hasWordPart) {
+      if (!hasWordPart && !hasWordContentType) {
         return 'File validation error: File is a generic ZIP archive, not a valid Word (.docx) document.';
       }
     } else if (expectedType == 'xlsx') {
-      if (hasWordPart && !hasExcelPart) {
+      if ((hasWordPart || hasWordContentType) && (!hasExcelPart && !hasExcelContentType)) {
         return 'File validation error: Content is a Word document (.docx) renamed as an Excel (.xlsx) spreadsheet.';
       }
-      if (!hasExcelPart) {
+      if (!hasExcelPart && !hasExcelContentType) {
         return 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
       }
     }
@@ -434,7 +487,7 @@ class DocumentService {
 
     final ext = fileName.substring(dotIndex + 1).toLowerCase();
     if (!supportedExtensions.contains(ext)) {
-      return 'Unsupported file format (.$ext). Supported formats: PDF, DOC, DOCX, XLS, XLSX, PNG, JPG, JPEG, WEBP, CSV, TXT.';
+      return 'Unsupported file format (.$ext). Supported formats: PDF, DOC, DOCX, XLS, XLSX, RTF, PNG, JPG, JPEG, WEBP, CSV, TXT.';
     }
 
     if (fileSize <= 0) {
@@ -535,6 +588,9 @@ class DocumentService {
               fileBytes[2] == 0x72 &&
               fileBytes[3] == 0x74 &&
               fileBytes[4] == 0x66; // '{\rtf'
+          if (isRtf) {
+            return 'File validation error: RTF content disguised as legacy Word (.doc) document is not permitted. Please use the .rtf extension.';
+          }
           final isOle = fileBytes.length >= 4 &&
               fileBytes[0] == 0xD0 &&
               fileBytes[1] == 0xCF &&
@@ -572,8 +628,19 @@ class DocumentService {
             if (!hasWord) {
               return 'File validation error: Content does not match expected Word (.doc) document signature.';
             }
-          } else if (!isRtf) {
+          } else {
             return 'File validation error: Content does not match expected Word (.doc) document signature.';
+          }
+          break;
+        case 'rtf':
+          final isRtf = fileBytes.length >= 5 &&
+              fileBytes[0] == 0x7B &&
+              fileBytes[1] == 0x5C &&
+              fileBytes[2] == 0x72 &&
+              fileBytes[3] == 0x74 &&
+              fileBytes[4] == 0x66; // '{\rtf'
+          if (!isRtf) {
+            return 'File validation error: Content does not match expected RTF signature.';
           }
           break;
         case 'xls':
@@ -663,6 +730,8 @@ class DocumentService {
         return 'application/vnd.ms-excel';
       case 'xlsx':
         return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+      case 'rtf':
+        return 'application/rtf';
       case 'png':
         return 'image/png';
       case 'jpg':

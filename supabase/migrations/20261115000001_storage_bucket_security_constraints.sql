@@ -17,6 +17,7 @@ SET
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'text/csv',
     'text/plain',
+    'application/rtf',
     'application/octet-stream' -- Transitional inclusion for backward compatibility
   ]
 WHERE id = 'documents';
