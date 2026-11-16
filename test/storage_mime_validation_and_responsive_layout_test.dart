@@ -125,11 +125,13 @@ void main() {
         isNull,
       );
 
-      // 1. Genuine DOCX package (contains [Content_Types].xml with WordprocessingML and word/document.xml)
+      // 1. Genuine DOCX package (contains [Content_Types].xml with WordprocessingML, word/document.xml, and _rels/.rels)
       final genuineDocxBytes = _buildZip({
         '[Content_Types].xml':
             '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
         'word/document.xml': '<?xml version="1.0" encoding="UTF-8"?><w:document></w:document>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
       });
       expect(
         DocumentService.validateFile(
@@ -141,11 +143,13 @@ void main() {
         reason: 'Genuine DOCX package must be accepted.',
       );
 
-      // 2. Genuine XLSX package (contains [Content_Types].xml with SpreadsheetML and xl/workbook.xml)
+      // 2. Genuine XLSX package (contains [Content_Types].xml with SpreadsheetML, xl/workbook.xml, and _rels/.rels)
       final genuineXlsxBytes = _buildZip({
         '[Content_Types].xml':
             '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
         'xl/workbook.xml': '<?xml version="1.0" encoding="UTF-8"?><workbook></workbook>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
       });
       expect(
         DocumentService.validateFile(
@@ -198,7 +202,7 @@ void main() {
         fileSize: zipWithContentTypesOnly.length,
         fileBytes: zipWithContentTypesOnly,
       );
-      expect(contentTypesOnlyDocx, contains('generic ZIP archive, not a valid Word (.docx) document'));
+      expect(contentTypesOnlyDocx, contains('not a valid Word (.docx) document'));
 
       // 6. Generic ZIP renamed as XLSX (valid ZIP but no xl/)
       final genericXlsxResult = DocumentService.validateFile(
@@ -214,7 +218,7 @@ void main() {
         fileSize: zipWithContentTypesOnly.length,
         fileBytes: zipWithContentTypesOnly,
       );
-      expect(contentTypesOnlyXlsx, contains('generic ZIP archive, not a valid Excel (.xlsx) spreadsheet'));
+      expect(contentTypesOnlyXlsx, contains('not a valid Excel (.xlsx) spreadsheet'));
 
       // 7. Malformed ZIP (starts with PK\x03\x04 but truncated/corrupt)
       final malformedZipBytes = [0x50, 0x4B, 0x03, 0x04, 0xFF, 0xFE, 0x00, 0x00];
@@ -430,8 +434,10 @@ void main() {
 
       // f) Content-Types XML verification: DOCX package containing spreadsheetml ContentType
       final xlsxContentInDocxArchive = _buildZip({
-        '[Content_Types].xml': '<Types><Override PartName="/doc.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
-        'generic.xml': '<content/>',
+        '[Content_Types].xml': '<Types><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
+        '_rels/.rels':
+            '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+        'xl/workbook.xml': '<workbook/>',
       });
       final xlsxInDocxResult = DocumentService.validateFile(
         fileName: 'disguised.docx',
@@ -444,6 +450,8 @@ void main() {
       final conflictingArchive = _buildZip({
         '[Content_Types].xml':
             '<Types><Override PartName="/word/doc.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/xl/sheet.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
+        '_rels/.rels':
+            '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
         'word/document.xml': '<w:document/>',
         'xl/workbook.xml': '<workbook/>',
       });
@@ -457,6 +465,8 @@ void main() {
       // h) Corrupt Office package: corrupted [Content_Types].xml
       final corruptOfficeZip = _buildZip({
         '[Content_Types].xml': '',
+        '_rels/.rels':
+            '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
         'word/document.xml': '<w:document/>',
       });
       final corruptPackageResult = DocumentService.validateFile(
@@ -473,6 +483,7 @@ void main() {
       bombEntry.size = 200; // Forged declared size passes declared size check
       final bombArchive = Archive();
       bombArchive.addFile(bombEntry);
+      bombArchive.addFile(ArchiveFile.bytes('_rels/.rels', utf8.encode('<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>')));
       bombArchive.addFile(ArchiveFile.bytes('word/document.xml', utf8.encode('<w:document/>')));
       final bombZipBytes = ZipEncoder().encode(bombArchive)!;
       final bombResult = DocumentService.validateFile(
@@ -487,7 +498,8 @@ void main() {
         '[Content_Types].xml':
             '<?xml version="1.0"?><Types><Override PartName="/word/other.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
         'word/other.xml': '<other/>',
-        '_rels/.rels': '<Relationships/>',
+        '_rels/.rels':
+            '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/other.xml"/></Relationships>',
       });
       final missingDocXmlResult = DocumentService.validateFile(
         fileName: 'missing_doc.docx',
@@ -501,7 +513,8 @@ void main() {
         '[Content_Types].xml':
             '<?xml version="1.0"?><Types><Override PartName="/xl/other.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
         'xl/other.xml': '<other/>',
-        '_rels/.rels': '<Relationships/>',
+        '_rels/.rels':
+            '<Relationships><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/other.xml"/></Relationships>',
       });
       final missingWbXmlResult = DocumentService.validateFile(
         fileName: 'missing_wb.xlsx',
@@ -569,6 +582,215 @@ void main() {
         ),
         contains('Binary control characters detected in plain text / CSV file'),
       );
+    });
+  });
+
+  group('OpenXML Root Relationship & Package Integrity Tests (SEC-04)', () {
+    // 1. Valid DOCX with correct root relationship (both relative 'word/document.xml' and absolute '/word/document.xml')
+    test('1. Valid DOCX with correct root relationship passes validation', () {
+      final docxRel = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        'word/document.xml': '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>',
+      });
+      expect(
+        DocumentService.validateFile(
+          fileName: 'policy.docx',
+          fileSize: docxRel.length,
+          fileBytes: docxRel,
+        ),
+        isNull,
+      );
+
+      // Also verify valid leading slash target (/word/document.xml)
+      final docxSlashRel = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        'word/document.xml': '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"/>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="/word/document.xml"/></Relationships>',
+      });
+      expect(
+        DocumentService.validateFile(
+          fileName: 'policy_slash.docx',
+          fileSize: docxSlashRel.length,
+          fileBytes: docxSlashRel,
+        ),
+        isNull,
+      );
+    });
+
+    // 2. Valid XLSX with correct root relationship (both relative 'xl/workbook.xml' and absolute '/xl/workbook.xml')
+    test('2. Valid XLSX with correct root relationship passes validation', () {
+      final xlsxRel = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
+        'xl/workbook.xml': '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>',
+      });
+      expect(
+        DocumentService.validateFile(
+          fileName: 'metrics.xlsx',
+          fileSize: xlsxRel.length,
+          fileBytes: xlsxRel,
+        ),
+        isNull,
+      );
+
+      final xlsxSlashRel = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
+        'xl/workbook.xml': '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"/>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="/xl/workbook.xml"/></Relationships>',
+      });
+      expect(
+        DocumentService.validateFile(
+          fileName: 'metrics_slash.xlsx',
+          fileSize: xlsxSlashRel.length,
+          fileBytes: xlsxSlashRel,
+        ),
+        isNull,
+      );
+    });
+
+    // 3. Missing _rels/.rels
+    test('3. Missing _rels/.rels is strictly rejected', () {
+      final docxNoRels = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        'word/document.xml': '<w:document/>',
+      });
+      final res = DocumentService.validateFile(
+        fileName: 'norels.docx',
+        fileSize: docxNoRels.length,
+        fileBytes: docxNoRels,
+      );
+      expect(res, contains('missing required root relationships (_rels/.rels)'));
+    });
+
+    // 4. Malformed relationship XML
+    test('4. Malformed relationship XML in _rels/.rels is strictly rejected', () {
+      final brokenXmlDocx = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        'word/document.xml': '<w:document/>',
+        '_rels/.rels': '<Relationships><broken-element attr="unclosed',
+      });
+      final res = DocumentService.validateFile(
+        fileName: 'broken.docx',
+        fileSize: brokenXmlDocx.length,
+        fileBytes: brokenXmlDocx,
+      );
+      expect(res, contains('_rels/.rels contains malformed or invalid XML'));
+    });
+
+    // 5. DOCX relationship pointing to an incorrect target
+    test('5. DOCX relationship pointing to an incorrect target is rejected', () {
+      final badTargetDocx = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        'word/document.xml': '<w:document/>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/other.xml"/></Relationships>',
+      });
+      final res = DocumentService.validateFile(
+        fileName: 'bad_target.docx',
+        fileSize: badTargetDocx.length,
+        fileBytes: badTargetDocx,
+      );
+      expect(res, contains('document relationship target does not point to word/document.xml'));
+    });
+
+    // 6. XLSX relationship pointing to an incorrect target
+    test('6. XLSX relationship pointing to an incorrect target is rejected', () {
+      final badTargetXlsx = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
+        'xl/workbook.xml': '<workbook/>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/other.xml"/></Relationships>',
+      });
+      final res = DocumentService.validateFile(
+        fileName: 'bad_target.xlsx',
+        fileSize: badTargetXlsx.length,
+        fileBytes: badTargetXlsx,
+      );
+      expect(res, contains('workbook relationship target does not point to xl/workbook.xml'));
+    });
+
+    // 7. Path traversal in relationship targets
+    test('7. Path traversal in relationship targets is strictly rejected', () {
+      final traversalDocx = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        'word/document.xml': '<w:document/>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="../word/document.xml"/></Relationships>',
+      });
+      final res = DocumentService.validateFile(
+        fileName: 'traversal.docx',
+        fileSize: traversalDocx.length,
+        fileBytes: traversalDocx,
+      );
+      expect(res, contains('Path traversal sequence detected in relationship target'));
+    });
+
+    // 8. External relationship target for main document
+    test('8. External relationship target for main document is strictly rejected', () {
+      final externalDocx = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        'word/document.xml': '<w:document/>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="http://evil.com/payload.xml" TargetMode="External"/></Relationships>',
+      });
+      final res = DocumentService.validateFile(
+        fileName: 'external.docx',
+        fileSize: externalDocx.length,
+        fileBytes: externalDocx,
+      );
+      expect(res, contains('Primary officeDocument relationship cannot specify TargetMode="External"'));
+    });
+
+    // 9. Duplicate or conflicting root relationships
+    test('9. Duplicate or conflicting root relationships are strictly rejected', () {
+      final duplicateDocx = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        'word/document.xml': '<w:document/>',
+        '_rels/.rels':
+            '<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document2.xml"/></Relationships>',
+      });
+      final res = DocumentService.validateFile(
+        fileName: 'duplicate.docx',
+        fileSize: duplicateDocx.length,
+        fileBytes: duplicateDocx,
+      );
+      expect(res, contains('contains duplicate or conflicting primary officeDocument relationships'));
+    });
+
+    // 10. Oversized relationship XML exceeding decompression limit
+    test('10. Oversized relationship XML exceeding 512 KB is rejected', () {
+      final largeRelsXml = '<?xml version="1.0"?><Relationships>' + ('<!-- padding -->' * 40000) + '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>';
+      final largeBytes = utf8.encode(largeRelsXml);
+      final relsBombEntry = ArchiveFile.bytes('_rels/.rels', largeBytes);
+      relsBombEntry.size = 200; // Forged declared size passes header check
+      final archive = Archive();
+      archive.addFile(relsBombEntry);
+      archive.addFile(ArchiveFile.bytes('[Content_Types].xml', utf8.encode('<?xml version="1.0"?><Types><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>')));
+      archive.addFile(ArchiveFile.bytes('word/document.xml', utf8.encode('<w:document/>')));
+      final zipBytes = ZipEncoder().encode(archive)!;
+
+      final res = DocumentService.validateFile(
+        fileName: 'rels_bomb.docx',
+        fileSize: zipBytes.length,
+        fileBytes: zipBytes,
+      );
+      expect(res, contains('ZIP decompression limit exceeded during processing, possible zip bomb.'));
     });
   });
 

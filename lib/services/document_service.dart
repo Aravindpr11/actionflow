@@ -6,6 +6,7 @@ import 'package:action_flow/services/app_file_picker_service.dart';
 import 'package:archive/archive.dart';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:xml/xml.dart';
 
 /// Result of creating an external share token
 class ExternalTokenCreationResult {
@@ -409,18 +410,19 @@ class DocumentService {
   }
 
   /// Inspects a ZIP archive's package structure to verify OpenXML document contents
-  /// with comprehensive zip bomb, path traversal, entry limits, and content-type enforcement.
+  /// with comprehensive zip bomb, path traversal, entry limits, content-type enforcement,
+  /// and root package relationship (_rels/.rels) target validation.
   /// All decompression occurs strictly in-memory without any filesystem extraction.
   /// Enforces early central directory parsing, entry count bounds, declared uncompressed limits,
-  /// required document parts (word/document.xml or xl/workbook.xml), package relationships (_rels/.rels),
-  /// and stream-bounded manifest decompression that aborts the instant byte limits are exceeded.
+  /// required document parts (word/document.xml or xl/workbook.xml), root package relationships (_rels/.rels),
+  /// and stream-bounded decompression that aborts the instant byte limits are exceeded.
   ///
   /// Note on Validation Scope:
   /// This performs deep OpenXML package integrity and signature validation (ZIP container safety,
   /// Central Directory limits, path traversal defense, stream-bounded manifest inspection,
-  /// required document/workbook XML part verification, and relationship package structure).
+  /// required document/workbook XML part verification, root relationship XML parsing, and target validation).
   /// It verifies container authenticity and protects against disguised/malicious files,
-  /// strictly distinguishing package signature validation from full Office document rendering/semantic parsing.
+  /// strictly distinguishing package signature and relationship validation from full Office document rendering/semantic parsing.
   /// Returns null if valid for the given [expectedType] ('docx' or 'xlsx'),
   /// or a descriptive error message if invalid.
   static String? _validateOpenXmlPackage(List<int> bytes, String expectedType) {
@@ -453,6 +455,7 @@ class DocumentService {
     // Step 3: Inspect declared uncompressed sizes and path traversal on all headers before decompression
     int totalDeclaredSize = 0;
     bool hasContentTypesHeader = false;
+    bool hasRelsHeader = false;
     bool hasWordDocument = false;
     bool hasWordPart = false;
     bool hasExcelWorkbook = false;
@@ -480,6 +483,9 @@ class DocumentService {
       if (normalized == '[Content_Types].xml' || normalized.endsWith('/[Content_Types].xml')) {
         hasContentTypesHeader = true;
       }
+      if (normalized == '_rels/.rels' || normalized.endsWith('/_rels/.rels')) {
+        hasRelsHeader = true;
+      }
       if (normalized == 'word/document.xml' || normalized.endsWith('/word/document.xml')) {
         hasWordDocument = true;
       }
@@ -501,12 +507,18 @@ class DocumentService {
           : 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
     }
 
+    if (!hasRelsHeader) {
+      return expectedType == 'docx'
+          ? 'File validation error: File is missing required root relationships (_rels/.rels), not a valid Word (.docx) document.'
+          : 'File validation error: File is missing required root relationships (_rels/.rels), not a valid Excel (.xlsx) spreadsheet.';
+    }
+
     // Reject archives containing conflicting Word and Excel package structures
     if (hasWordPart && hasExcelPart) {
       return 'File validation error: Archive contains conflicting Word and Excel package structures.';
     }
 
-    // Step 5: Decode archive container safely to inspect [Content_Types].xml
+    // Step 5: Decode archive container safely to inspect [Content_Types].xml and _rels/.rels
     Archive archive;
     try {
       archive = ZipDecoder().decodeBytes(bytes, verify: false);
@@ -518,11 +530,13 @@ class DocumentService {
     }
 
     ArchiveFile? contentTypesFile;
+    ArchiveFile? relsFile;
     for (final file in archive.files) {
       final norm = file.name.replaceAll('\\', '/');
       if (norm == '[Content_Types].xml' || norm.endsWith('/[Content_Types].xml')) {
         contentTypesFile = file;
-        break;
+      } else if (norm == '_rels/.rels' || norm.endsWith('/_rels/.rels')) {
+        relsFile = file;
       }
     }
 
@@ -532,22 +546,31 @@ class DocumentService {
           : 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
     }
 
-    // Enforce declared size ceiling on [Content_Types].xml before decompression
+    if (relsFile == null) {
+      return expectedType == 'docx'
+          ? 'File validation error: File is missing required root relationships (_rels/.rels), not a valid Word (.docx) document.'
+          : 'File validation error: File is missing required root relationships (_rels/.rels), not a valid Excel (.xlsx) spreadsheet.';
+    }
+
+    // Enforce declared size ceilings before decompression (512 KB each)
     if (contentTypesFile.size < 0 || contentTypesFile.size > maxContentTypesSize) {
       return 'File validation error: [Content_Types].xml uncompressed size exceeds safety limit (${contentTypesFile.size} bytes).';
+    }
+    if (relsFile.size < 0 || relsFile.size > maxContentTypesSize) {
+      return 'File validation error: _rels/.rels uncompressed size exceeds safety limit (${relsFile.size} bytes).';
     }
 
     // Step 6: Controlled bounded decompression of [Content_Types].xml
     // Decompresses strictly in-memory into BoundedOutputMemoryStream.
     // If actual decompressed output exceeds maxContentTypesSize (512 KB), decompression aborts immediately.
-    final boundedOut = BoundedOutputMemoryStream(maxBytes: maxContentTypesSize);
+    final contentBoundedOut = BoundedOutputMemoryStream(maxBytes: maxContentTypesSize);
     try {
-      contentTypesFile.decompress(boundedOut);
+      contentTypesFile.decompress(contentBoundedOut);
     } catch (e) {
       return 'File validation error: ZIP decompression limit exceeded during processing, possible zip bomb.';
     }
 
-    final contentBytes = boundedOut.getBytes();
+    final contentBytes = contentBoundedOut.getBytes();
     if (contentBytes.isEmpty) {
       return 'File validation error: [Content_Types].xml is empty or corrupt.';
     }
@@ -560,8 +583,126 @@ class DocumentService {
       return 'File validation error: Archive contains conflicting Word and Excel package structures.';
     }
 
+    // Step 7: Controlled bounded decompression and strict XML parsing of _rels/.rels
+    final relsBoundedOut = BoundedOutputMemoryStream(maxBytes: maxContentTypesSize);
+    try {
+      relsFile.decompress(relsBoundedOut);
+    } catch (e) {
+      return 'File validation error: ZIP decompression limit exceeded during processing, possible zip bomb.';
+    }
+
+    final relsBytes = relsBoundedOut.getBytes();
+    if (relsBytes.isEmpty) {
+      return 'File validation error: _rels/.rels is empty or corrupt.';
+    }
+
+    String relsStr;
+    try {
+      relsStr = utf8.decode(relsBytes);
+    } catch (_) {
+      return 'File validation error: _rels/.rels contains malformed or invalid XML.';
+    }
+
+    XmlDocument relsXml;
+    try {
+      relsXml = XmlDocument.parse(relsStr);
+    } catch (_) {
+      return 'File validation error: _rels/.rels contains malformed or invalid XML.';
+    }
+
+    final root = relsXml.rootElement;
+    if (root.name.local != 'Relationships') {
+      return 'File validation error: _rels/.rels root element must be <Relationships>.';
+    }
+
+    final relationshipElements = root.childElements.where((e) => e.name.local == 'Relationship');
+    if (relationshipElements.isEmpty) {
+      return 'File validation error: _rels/.rels contains no <Relationship> elements.';
+    }
+
+    final List<String> officeDocTargets = [];
+    bool hasWordRelTarget = false;
+    bool hasExcelRelTarget = false;
+
+    for (final rel in relationshipElements) {
+      final type = rel.getAttribute('Type')?.trim() ?? '';
+      final target = rel.getAttribute('Target')?.trim() ?? '';
+      final targetMode = rel.getAttribute('TargetMode')?.trim() ?? 'Internal';
+
+      if (type.isEmpty || target.isEmpty) {
+        return 'File validation error: _rels/.rels contains relationship with missing Type or Target attribute.';
+      }
+
+      final isOfficeDocType = type == 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument' ||
+          type == 'http://schemas.microsoft.com/office/2006/relationships/officeDocument' ||
+          type.endsWith('/officeDocument');
+
+      // Check external relationships
+      if (targetMode.toLowerCase() == 'external') {
+        if (isOfficeDocType) {
+          return 'File validation error: Primary officeDocument relationship cannot specify TargetMode="External".';
+        }
+        // Do not follow external relationships or perform network requests.
+        continue;
+      }
+
+      // Target path traversal and escape validation
+      final normalizedTarget = target.replaceAll('\\', '/');
+      final segments = normalizedTarget.split('/');
+      if (segments.any((seg) => seg == '..')) {
+        return 'File validation error: Path traversal sequence detected in relationship target ($target).';
+      }
+
+      // Check for protocol or drive letter roots
+      if (RegExp(r'^[a-zA-Z]:').hasMatch(normalizedTarget) || normalizedTarget.contains('://')) {
+        return 'File validation error: Invalid or external relationship target ($target) for main document.';
+      }
+
+      // Relative target resolution: in _rels/.rels, base URI is '/'
+      // So both 'word/document.xml' and '/word/document.xml' resolve to 'word/document.xml'
+      String resolvedTarget = normalizedTarget;
+      while (resolvedTarget.startsWith('/')) {
+        resolvedTarget = resolvedTarget.substring(1);
+      }
+      while (resolvedTarget.startsWith('./')) {
+        resolvedTarget = resolvedTarget.substring(2);
+      }
+
+      if (resolvedTarget.isEmpty) {
+        return 'File validation error: Invalid empty relationship target ($target).';
+      }
+
+      if (isOfficeDocType) {
+        officeDocTargets.add(resolvedTarget);
+        if (resolvedTarget == 'word/document.xml' || resolvedTarget.startsWith('word/')) {
+          hasWordRelTarget = true;
+        }
+        if (resolvedTarget == 'xl/workbook.xml' || resolvedTarget.startsWith('xl/')) {
+          hasExcelRelTarget = true;
+        }
+      }
+    }
+
+    if (officeDocTargets.isEmpty) {
+      return expectedType == 'docx'
+          ? 'File validation error: _rels/.rels does not contain a primary document relationship for Word (.docx).'
+          : 'File validation error: _rels/.rels does not contain a primary workbook relationship for Excel (.xlsx).';
+    }
+
+    if (officeDocTargets.length > 1) {
+      return 'File validation error: _rels/.rels contains duplicate or conflicting primary officeDocument relationships.';
+    }
+
+    final primaryTarget = officeDocTargets.first;
+
+    if (hasWordRelTarget && hasExcelRelTarget) {
+      return 'File validation error: Archive contains conflicting Word and Excel package relationships.';
+    }
+
+    // Step 8: Final format-specific structural integrity verification
     if (expectedType == 'docx') {
-      if ((hasExcelPart || hasExcelContentType) && (!hasWordPart && !hasWordContentType)) {
+      if ((hasExcelPart || hasExcelContentType || hasExcelRelTarget) &&
+          (!hasWordPart && !hasWordContentType && !hasWordRelTarget)) {
         return 'File validation error: Content is an Excel spreadsheet (.xlsx) renamed as a Word (.docx) document.';
       }
       if (!hasWordPart || !hasWordDocument) {
@@ -570,8 +711,15 @@ class DocumentService {
       if (!hasWordContentType) {
         return 'File validation error: [Content_Types].xml does not define WordprocessingML content type.';
       }
+      if (primaryTarget != 'word/document.xml') {
+        if (primaryTarget == 'xl/workbook.xml' || primaryTarget.startsWith('xl/')) {
+          return 'File validation error: Content is an Excel spreadsheet (.xlsx) renamed as a Word (.docx) document.';
+        }
+        return 'File validation error: _rels/.rels document relationship target does not point to word/document.xml ($primaryTarget).';
+      }
     } else if (expectedType == 'xlsx') {
-      if ((hasWordPart || hasWordContentType) && (!hasExcelPart && !hasExcelContentType)) {
+      if ((hasWordPart || hasWordContentType || hasWordRelTarget) &&
+          (!hasExcelPart && !hasExcelContentType && !hasExcelRelTarget)) {
         return 'File validation error: Content is a Word document (.docx) renamed as an Excel (.xlsx) spreadsheet.';
       }
       if (!hasExcelPart || !hasExcelWorkbook) {
@@ -579,6 +727,12 @@ class DocumentService {
       }
       if (!hasExcelContentType) {
         return 'File validation error: [Content_Types].xml does not define SpreadsheetML content type.';
+      }
+      if (primaryTarget != 'xl/workbook.xml') {
+        if (primaryTarget == 'word/document.xml' || primaryTarget.startsWith('word/')) {
+          return 'File validation error: Content is a Word document (.docx) renamed as an Excel (.xlsx) spreadsheet.';
+        }
+        return 'File validation error: _rels/.rels workbook relationship target does not point to xl/workbook.xml ($primaryTarget).';
       }
     }
 
