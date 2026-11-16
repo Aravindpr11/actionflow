@@ -255,26 +255,28 @@ class _ExternalActionUpdateScreenState
           child: SafeArea(
             child: Row(
               children: [
-                ActionFlowBrand(logoSize: 32, fontSize: 18, isDark: isDark),
-                const SizedBox(width: 12),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 3,
-                  ),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF1565C0).withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: const Text(
-                    'Contractor Portal',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF1565C0),
+                ActionFlowBrand(logoSize: 26, fontSize: 15, isDark: isDark, spacing: 6),
+                if (MediaQuery.of(context).size.width > 420) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 6,
+                      vertical: 2,
+                    ),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1565C0).withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Text(
+                      'Contractor Portal',
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1565C0),
+                      ),
                     ),
                   ),
-                ),
+                ],
                 const Spacer(),
                 const ThemeToggleButton(),
               ],
@@ -643,8 +645,11 @@ class _ExternalActionUpdateScreenState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Top Meta row
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                Wrap(
+                  alignment: WrapAlignment.spaceBetween,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  spacing: 8,
+                  runSpacing: 6,
                   children: [
                     Container(
                       padding: const EdgeInsets.symmetric(
@@ -668,6 +673,7 @@ class _ExternalActionUpdateScreenState
                       ),
                     ),
                     Row(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         _buildBadge(context, action.priority, _getPriorityColor(action.priority)),
                         const SizedBox(width: 8),
@@ -1043,8 +1049,11 @@ class _ExternalActionUpdateScreenState
                   ],
 
                   // Progress Slider
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
                       Text(
                         _subTasks.isNotEmpty
@@ -1208,8 +1217,11 @@ class _ExternalActionUpdateScreenState
                   const SizedBox(height: 18),
 
                   // Attachments Section
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
                       Text(
                         'Attached Photos / Documents:',

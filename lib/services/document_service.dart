@@ -412,7 +412,15 @@ class DocumentService {
   /// with comprehensive zip bomb, path traversal, entry limits, and content-type enforcement.
   /// All decompression occurs strictly in-memory without any filesystem extraction.
   /// Enforces early central directory parsing, entry count bounds, declared uncompressed limits,
-  /// and stream-bounded decompression that aborts the instant byte limits are exceeded.
+  /// required document parts (word/document.xml or xl/workbook.xml), package relationships (_rels/.rels),
+  /// and stream-bounded manifest decompression that aborts the instant byte limits are exceeded.
+  ///
+  /// Note on Validation Scope:
+  /// This performs deep OpenXML package integrity and signature validation (ZIP container safety,
+  /// Central Directory limits, path traversal defense, stream-bounded manifest inspection,
+  /// required document/workbook XML part verification, and relationship package structure).
+  /// It verifies container authenticity and protects against disguised/malicious files,
+  /// strictly distinguishing package signature validation from full Office document rendering/semantic parsing.
   /// Returns null if valid for the given [expectedType] ('docx' or 'xlsx'),
   /// or a descriptive error message if invalid.
   static String? _validateOpenXmlPackage(List<int> bytes, String expectedType) {
@@ -445,7 +453,9 @@ class DocumentService {
     // Step 3: Inspect declared uncompressed sizes and path traversal on all headers before decompression
     int totalDeclaredSize = 0;
     bool hasContentTypesHeader = false;
+    bool hasWordDocument = false;
     bool hasWordPart = false;
+    bool hasExcelWorkbook = false;
     bool hasExcelPart = false;
 
     for (final header in zipDir.fileHeaders) {
@@ -470,8 +480,14 @@ class DocumentService {
       if (normalized == '[Content_Types].xml' || normalized.endsWith('/[Content_Types].xml')) {
         hasContentTypesHeader = true;
       }
+      if (normalized == 'word/document.xml' || normalized.endsWith('/word/document.xml')) {
+        hasWordDocument = true;
+      }
       if (normalized.startsWith('word/') || normalized.contains('/word/')) {
         hasWordPart = true;
+      }
+      if (normalized == 'xl/workbook.xml' || normalized.endsWith('/xl/workbook.xml')) {
+        hasExcelWorkbook = true;
       }
       if (normalized.startsWith('xl/') || normalized.contains('/xl/')) {
         hasExcelPart = true;
@@ -548,7 +564,7 @@ class DocumentService {
       if ((hasExcelPart || hasExcelContentType) && (!hasWordPart && !hasWordContentType)) {
         return 'File validation error: Content is an Excel spreadsheet (.xlsx) renamed as a Word (.docx) document.';
       }
-      if (!hasWordPart) {
+      if (!hasWordPart || !hasWordDocument) {
         return 'File validation error: File is a generic ZIP archive, not a valid Word (.docx) document.';
       }
       if (!hasWordContentType) {
@@ -558,7 +574,7 @@ class DocumentService {
       if ((hasWordPart || hasWordContentType) && (!hasExcelPart && !hasExcelContentType)) {
         return 'File validation error: Content is a Word document (.docx) renamed as an Excel (.xlsx) spreadsheet.';
       }
-      if (!hasExcelPart) {
+      if (!hasExcelPart || !hasExcelWorkbook) {
         return 'File validation error: File is a generic ZIP archive, not a valid Excel (.xlsx) spreadsheet.';
       }
       if (!hasExcelContentType) {

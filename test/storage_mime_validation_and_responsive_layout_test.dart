@@ -482,6 +482,34 @@ void main() {
       );
       expect(bombResult, contains('ZIP decompression limit exceeded during processing, possible zip bomb.'));
 
+      // j) Specific document entry verification: DOCX missing word/document.xml
+      final docxMissingDocXml = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0"?><Types><Override PartName="/word/other.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>',
+        'word/other.xml': '<other/>',
+        '_rels/.rels': '<Relationships/>',
+      });
+      final missingDocXmlResult = DocumentService.validateFile(
+        fileName: 'missing_doc.docx',
+        fileSize: docxMissingDocXml.length,
+        fileBytes: docxMissingDocXml,
+      );
+      expect(missingDocXmlResult, contains('generic ZIP archive, not a valid Word (.docx) document'));
+
+      // k) Specific workbook entry verification: XLSX missing xl/workbook.xml
+      final xlsxMissingWbXml = _buildZip({
+        '[Content_Types].xml':
+            '<?xml version="1.0"?><Types><Override PartName="/xl/other.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/></Types>',
+        'xl/other.xml': '<other/>',
+        '_rels/.rels': '<Relationships/>',
+      });
+      final missingWbXmlResult = DocumentService.validateFile(
+        fileName: 'missing_wb.xlsx',
+        fileSize: xlsxMissingWbXml.length,
+        fileBytes: xlsxMissingWbXml,
+      );
+      expect(missingWbXmlResult, contains('generic ZIP archive, not a valid Excel (.xlsx) spreadsheet'));
+
       // WebP signature validation: RIFF container with WEBP identifier
       final validWebpBytes = [
         0x52, 0x49, 0x46, 0x46, // RIFF
