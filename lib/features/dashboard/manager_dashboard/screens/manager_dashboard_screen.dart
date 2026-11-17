@@ -63,12 +63,14 @@ class ManagerDashboardScreen extends StatefulWidget {
     this.managerContext,
     this.initialActions,
     this.initialMyActions,
+    this.initialNavIndex = 0,
   });
 
   final UserProfile? userProfile;
   final ManagerContext? managerContext;
   final List<ActionRecord>? initialActions;
   final List<ActionRecord>? initialMyActions;
+  final int initialNavIndex;
 
   @override
   State<ManagerDashboardScreen> createState() => _ManagerDashboardScreenState();
@@ -121,6 +123,7 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _selectedNavIndex = widget.initialNavIndex;
     _managerProfile =
         widget.userProfile ??
         widget.managerContext?.profile ??
@@ -5768,102 +5771,162 @@ class _DocumentsPortalViewState extends State<_DocumentsPortalView> {
       (acc, d) => acc + d.sharedInternalCount + d.sharedExternalCount,
     );
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: AppTheme.cardBg(context),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: AppTheme.cardBorder(context)),
-        boxShadow: [
-          BoxShadow(
-            color: AppTheme.isDark(context)
-                ? Colors.black.withValues(alpha: 0.2)
-                : const Color(0x060F172A),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // 1. Header Row
-          Row(
-            children: [
-              const Icon(
-                Icons.folder_outlined,
-                color: Color(0xFF1565C0),
-                size: 24,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isMobile = constraints.maxWidth < 650;
+        return Container(
+          width: double.infinity,
+          padding: EdgeInsets.all(isMobile ? 16 : 20),
+          decoration: BoxDecoration(
+            color: AppTheme.cardBg(context),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppTheme.cardBorder(context)),
+            boxShadow: [
+              BoxShadow(
+                color: AppTheme.isDark(context)
+                    ? Colors.black.withValues(alpha: 0.2)
+                    : const Color(0x060F172A),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
               ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Safety Documents & Guidelines',
+            ],
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (!isMobile) ...[
+                // 1. Header Row (Desktop / Tablet)
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.folder_outlined,
+                      color: Color(0xFF1565C0),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Safety Documents & Guidelines',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary(context),
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded, size: 20),
+                      tooltip: 'Refresh Documents',
+                      onPressed: _loadDocuments,
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton.icon(
+                      key: const Key('documents_upload_button'),
+                      icon: const Icon(Icons.upload_file_rounded, size: 18),
+                      label: const Text('Upload Document'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF1565C0),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: _showUploadDialog,
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  'Central repository for HSSE operating procedures, risk assessments, and compliance evidence.',
                   style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary(context),
+                    fontSize: 13,
+                    color: AppTheme.textSecondary(context),
                   ),
                 ),
-              ),
-              IconButton(
-                icon: const Icon(Icons.refresh_rounded, size: 20),
-                tooltip: 'Refresh Documents',
-                onPressed: _loadDocuments,
-              ),
-              const SizedBox(width: 8),
-              FilledButton.icon(
-                key: const Key('documents_upload_button'),
-                icon: const Icon(Icons.upload_file_rounded, size: 18),
-                label: const Text('Upload Document'),
-                style: FilledButton.styleFrom(
-                  backgroundColor: const Color(0xFF1565C0),
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ] else ...[
+                // 1. Heading on its own row (Mobile)
+                Row(
+                  children: [
+                    const Icon(
+                      Icons.folder_outlined,
+                      color: Color(0xFF1565C0),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Safety Documents & Guidelines',
+                        style: TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppTheme.textPrimary(context),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                onPressed: _showUploadDialog,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            'Central repository for HSSE operating procedures, risk assessments, and compliance evidence.',
-            style: TextStyle(
-              fontSize: 13,
-              color: AppTheme.textSecondary(context),
-            ),
-          ),
-          const SizedBox(height: 16),
+                const SizedBox(height: 6),
+                Text(
+                  'Central repository for HSSE operating procedures, risk assessments, and compliance evidence.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: AppTheme.textSecondary(context),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                // 2. Refresh and Upload Document controls in separate responsive row (Mobile)
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    IconButton(
+                      icon: const Icon(Icons.refresh_rounded, size: 20),
+                      tooltip: 'Refresh Documents',
+                      onPressed: _loadDocuments,
+                    ),
+                    FilledButton.icon(
+                      key: const Key('documents_upload_button'),
+                      icon: const Icon(Icons.upload_file_rounded, size: 18),
+                      label: const Text('Upload Document'),
+                      style: FilledButton.styleFrom(
+                        backgroundColor: const Color(0xFF1565C0),
+                        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: _showUploadDialog,
+                    ),
+                  ],
+                ),
+              ],
+              const SizedBox(height: 16),
 
-          // 2. Summary KPI row
-          Row(
-            children: [
-              _buildSmallKpiChip(
-                context,
-                Icons.description_outlined,
-                '${_documents.length} Total Documents',
-                const Color(0xFF1565C0),
+              // 2. Summary KPI row
+              Wrap(
+                spacing: 10,
+                runSpacing: 8,
+                children: [
+                  _buildSmallKpiChip(
+                    context,
+                    Icons.description_outlined,
+                    '${_documents.length} Total Documents',
+                    const Color(0xFF1565C0),
+                  ),
+                  _buildSmallKpiChip(
+                    context,
+                    Icons.category_outlined,
+                    '$categoriesWithDocs Categories',
+                    const Color(0xFF16A34A),
+                  ),
+                  _buildSmallKpiChip(
+                    context,
+                    Icons.share_outlined,
+                    '$totalShares Active Shares',
+                    const Color(0xFFEA580C),
+                  ),
+                ],
               ),
-              const SizedBox(width: 10),
-              _buildSmallKpiChip(
-                context,
-                Icons.category_outlined,
-                '$categoriesWithDocs Categories',
-                const Color(0xFF16A34A),
-              ),
-              const SizedBox(width: 10),
-              _buildSmallKpiChip(
-                context,
-                Icons.share_outlined,
-                '$totalShares Active Shares',
-                const Color(0xFFEA580C),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
+              const SizedBox(height: 20),
 
-          // 3. Tab Chips
+              // 3. Tab Chips
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(
@@ -5958,36 +6021,32 @@ class _DocumentsPortalViewState extends State<_DocumentsPortalView> {
           const SizedBox(height: 12),
 
           // Category Chips
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                'All',
-                ...DocumentCategory.all,
-              ].map((cat) {
-                final isSelected = _selectedCategory.toLowerCase() == cat.toLowerCase();
-                return Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(
-                      cat,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: isSelected ? Colors.white : AppTheme.textPrimary(context),
-                      ),
-                    ),
-                    selected: isSelected,
-                    selectedColor: const Color(0xFF1565C0),
-                    backgroundColor: AppTheme.containerBg(context),
-                    onSelected: (selected) {
-                      if (selected) {
-                        setState(() => _selectedCategory = cat);
-                      }
-                    },
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              'All',
+              ...DocumentCategory.all,
+            ].map((cat) {
+              final isSelected = _selectedCategory.toLowerCase() == cat.toLowerCase();
+              return ChoiceChip(
+                label: Text(
+                  cat,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isSelected ? Colors.white : AppTheme.textPrimary(context),
                   ),
-                );
-              }).toList(),
-            ),
+                ),
+                selected: isSelected,
+                selectedColor: const Color(0xFF1565C0),
+                backgroundColor: AppTheme.containerBg(context),
+                onSelected: (selected) {
+                  if (selected) {
+                    setState(() => _selectedCategory = cat);
+                  }
+                },
+              );
+            }).toList(),
           ),
           const SizedBox(height: 20),
 
@@ -6143,6 +6202,8 @@ class _DocumentsPortalViewState extends State<_DocumentsPortalView> {
             ),
         ],
       ),
+    );
+      },
     );
   }
 }
