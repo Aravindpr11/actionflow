@@ -285,8 +285,8 @@ class _ActionDetailsScreenState extends State<ActionDetailsScreen> {
                   ),
                 ],
               ),
-              content: SizedBox(
-                width: 480,
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -3,6 +3,7 @@ import '../../../core/theme/app_theme.dart';
 import '../models/request_models.dart';
 import '../services/request_service.dart';
 import '../widgets/forward_request_dialog.dart';
+import '../widgets/request_card_header.dart';
 import '../widgets/request_filter_bar.dart';
 import 'new_request_screen.dart';
 import 'request_details_screen.dart';
@@ -291,8 +292,8 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
             ),
           ],
         ),
-        content: SizedBox(
-          width: 440,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -690,10 +691,6 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
   // REQUEST CARD
   // ===========================================================================
   Widget _buildRequestCard(BuildContext context, RequestRecord req, bool isDark) {
-    final statusColor = RequestStatus.getColor(req.status);
-    final priorityColor = RequestPriority.getColor(req.priority);
-    final typeColor = RequestType.getColor(req.requestType);
-
     // Overdue detection
     bool isOverdue = false;
     final parsedDate = DateTime.tryParse(req.requiredByDate);
@@ -721,98 +718,8 @@ class _MyRequestsScreenState extends State<MyRequestsScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Top Metadata Row: Display ID, Type, Priority, Status
-              Wrap(
-                spacing: 8,
-                runSpacing: 6,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
-                  // Display ID Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: AppTheme.primaryColor.withOpacity(0.3)),
-                    ),
-                    child: Text(
-                      req.displayId,
-                      style: const TextStyle(
-                        fontFamily: 'monospace',
-                        fontWeight: FontWeight.bold,
-                        fontSize: 12,
-                        color: AppTheme.primaryColor,
-                      ),
-                    ),
-                  ),
-
-                  // Request Type Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: typeColor.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(RequestType.getIcon(req.requestType), size: 14, color: typeColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          req.requestType,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w600,
-                            color: typeColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-
-                  // Priority Badge
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: priorityColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Text(
-                      req.priority,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: priorityColor,
-                      ),
-                    ),
-                  ),
-
-                  // Status Pill
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: statusColor.withOpacity(0.3)),
-                    ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(RequestStatus.getIcon(req.status), size: 14, color: statusColor),
-                        const SizedBox(width: 4),
-                        Text(
-                          req.status,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: statusColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+              // Top Metadata Row: Display ID, Type, Priority, Status (Responsive & Adaptive)
+              RequestCardHeader(request: req),
               const SizedBox(height: 12),
 
               // Title

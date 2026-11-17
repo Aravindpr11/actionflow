@@ -50,8 +50,10 @@ import 'worker_action_update_screen.dart';
 import 'package:action_flow/features/requests/screens/new_request_screen.dart';
 import 'package:action_flow/features/requests/screens/request_approval_screen.dart';
 import 'package:action_flow/features/requests/screens/my_requests_screen.dart';
+import 'package:action_flow/features/requests/screens/request_details_screen.dart';
 import 'package:action_flow/features/requests/models/request_models.dart';
 import 'package:action_flow/features/requests/services/request_service.dart';
+import 'package:action_flow/widgets/search/global_search_autocomplete.dart';
 
 class WorkerDashboardScreen extends StatefulWidget {
   const WorkerDashboardScreen({
@@ -418,8 +420,8 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
                   ),
                 ],
               ),
-              content: SizedBox(
-                width: 440,
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 440),
                 child: Text(
                   'Are you sure you want to delete "${doc.title}"?\n\nThis will remove the file from storage, delete all metadata, and permanently revoke all active shares.',
                   style: TextStyle(fontSize: 13, color: AppTheme.textSecondary(dialogCtx)),
@@ -2073,6 +2075,23 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
     _openDetails(match);
   }
 
+  void _handleRequestTap(String requestId, [RequestRecord? initialRequest]) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RequestDetailsScreen(
+          requestId: requestId,
+          initialRequest: initialRequest,
+          currentUserId: _staffProfile.id,
+          currentUserName: _staffProfile.name,
+          currentUserRole: _staffProfile.role,
+          currentUserEmail: _staffProfile.email,
+          organizationId: _effectiveOrgId,
+          isManager: false,
+        ),
+      ),
+    );
+  }
+
   void _logout() async {
     QuickAlertListener.resetSession(_staffProfile.id);
     await AuthService.instance.signOut();
@@ -2143,6 +2162,10 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
                         isMobile: !showSidebar,
                         searchController: _searchController,
                         unreadCount: _unreadNotificationCount,
+                        cachedActions: _myActions,
+                        organizationId: _effectiveOrgId,
+                        onActionTap: _handleNotificationActionTap,
+                        onRequestTap: _handleRequestTap,
                         onSearchChanged: (val) {
                           setState(() {
                             _searchQuery = val;
@@ -2157,7 +2180,6 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
                         onViewAllNotifications: () {
                           setState(() => _selectedNavIndex = 5);
                         },
-                        onActionTap: _handleNotificationActionTap,
                         onNotificationItemTap: _handleNotificationTap,
                         onUnreadCountChanged: _updateNotificationCount,
                         onProfileTap: () {
@@ -2219,20 +2241,6 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
 
     switch (_selectedNavIndex) {
       case 0:
-        if (constraints.maxWidth < 440) {
-          return SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: SizedBox(
-              width: 440,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(12.0, 16.0, 12.0, 24.0),
-                child: _buildDashboardView(
-                  const BoxConstraints(maxWidth: 440, minWidth: 440),
-                ),
-              ),
-            ),
-          );
-        }
         return SingleChildScrollView(
           padding: padding,
           child: _buildDashboardView(constraints),
@@ -3130,11 +3138,7 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
           onExportExcel: _exportStaffReport,
           onRefresh: _loadStaffActions,
         );
-        if (reportConstraints.maxWidth >= 1200) return reports;
-        return SingleChildScrollView(
-          scrollDirection: Axis.horizontal,
-          child: SizedBox(width: 1200, child: reports),
-        );
+        return reports;
       },
     );
   }
@@ -6385,11 +6389,14 @@ class _WorkerTopHeader extends StatelessWidget {
     required this.isMobile,
     required this.searchController,
     this.unreadCount = 3,
+    this.cachedActions,
+    this.organizationId,
     required this.onSearchChanged,
     required this.onMenuTap,
     required this.onNotificationTap,
     this.onViewAllNotifications,
     this.onActionTap,
+    this.onRequestTap,
     this.onNotificationItemTap,
     this.onUnreadCountChanged,
     required this.onLogout,
@@ -6401,11 +6408,14 @@ class _WorkerTopHeader extends StatelessWidget {
   final bool isMobile;
   final TextEditingController searchController;
   final int unreadCount;
+  final List<ActionRecord>? cachedActions;
+  final String? organizationId;
   final ValueChanged<String> onSearchChanged;
   final VoidCallback onMenuTap;
   final VoidCallback onNotificationTap;
   final VoidCallback? onViewAllNotifications;
   final void Function(String actionId)? onActionTap;
+  final void Function(String requestId, RequestRecord? request)? onRequestTap;
   final void Function(AppNotification notification)? onNotificationItemTap;
   final VoidCallback? onUnreadCountChanged;
   final VoidCallback onLogout;
@@ -6456,57 +6466,30 @@ class _WorkerTopHeader extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                   ],
-                  SizedBox(
+                  // Enterprise Global Search Autocomplete
+                  GlobalSearchAutocomplete(
+                    controller: searchController,
+                    cachedActions: cachedActions,
+                    organizationId: organizationId ?? profile.organizationId,
+                    currentUserId: profile.id,
+                    currentUserRole: profile.role.isNotEmpty ? profile.role : 'Staff',
                     width: isNarrow
                         ? (isSmall ? 130 : 160)
                         : (constraints.maxWidth > 900 ? 300 : 220),
                     height: 38,
-                    child: TextField(
-                      controller: searchController,
-                      onChanged: onSearchChanged,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textPrimary(context),
-                      ),
-                      decoration: InputDecoration(
-                        hintText: isNarrow
-                            ? 'Search actions...'
-                            : 'Search my actions, sites...',
-                        hintStyle: TextStyle(
-                          fontSize: 12.5,
-                          color: AppTheme.textMuted(context),
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search_rounded,
-                          size: 18,
-                          color: AppTheme.textSecondary(context),
-                        ),
-                        filled: true,
-                        fillColor: AppTheme.inputFill(context),
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 0,
-                          horizontal: 10,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: AppTheme.inputBorder(context),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: AppTheme.inputBorder(context),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF1565C0),
-                          ),
-                        ),
-                      ),
-                    ),
+                    hintText: isNarrow
+                        ? 'Search actions, requests...'
+                        : 'Search my actions, requests...',
+                    onSearchChanged: onSearchChanged,
+                    onActionSelected: (item) {
+                      onActionTap?.call(item.referenceNumber);
+                    },
+                    onRequestSelected: (item) {
+                      final req = item.rawRecord is RequestRecord
+                          ? item.rawRecord as RequestRecord
+                          : null;
+                      onRequestTap?.call(item.id, req);
+                    },
                   ),
                 ],
               ),

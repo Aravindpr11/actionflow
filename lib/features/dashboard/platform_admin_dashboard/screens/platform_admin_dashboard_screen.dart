@@ -3148,8 +3148,8 @@ class _PlatformAdminDashboardScreenState
             Text('Audit Event: ${log.action}'),
           ],
         ),
-        content: SizedBox(
-          width: 500,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -6492,8 +6492,8 @@ class _AddCompanyAdminDialogState extends State<_AddCompanyAdminDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 480,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -6798,8 +6798,8 @@ class _EditCompanyAdminDialogState extends State<_EditCompanyAdminDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 480,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -7060,8 +7060,8 @@ class _DeleteCompanyAdminDialogState extends State<_DeleteCompanyAdminDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 480,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(
@@ -7321,8 +7321,8 @@ class _AddCompanyDialogState extends State<_AddCompanyDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 480,
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 480),
         child: Form(
           key: _formKey,
           child: SingleChildScrollView(

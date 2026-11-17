@@ -125,8 +125,8 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
                   const Text('Approve Request'),
                 ],
               ),
-              content: SizedBox(
-                width: 480,
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -248,8 +248,8 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
                   const Text('Reject Request'),
                 ],
               ),
-              content: SizedBox(
-                width: 480,
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 480),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -386,8 +386,8 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Mark Request as Completed'),
-        content: SizedBox(
-          width: 440,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -481,8 +481,8 @@ class _RequestDetailsScreenState extends State<RequestDetailsScreen> {
             ),
           ],
         ),
-        content: SizedBox(
-          width: 440,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,

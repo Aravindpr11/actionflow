@@ -1963,7 +1963,7 @@ class _AddActionScreenState extends State<AddActionScreen> {
                   crossAxisAlignment: WrapCrossAlignment.center,
                   spacing: 12,
                   runSpacing: 8,
-                  children: const [
+                  children: [
                     SizedBox(
                       width: 18,
                       height: 18,
@@ -3166,8 +3166,8 @@ class _AddActionScreenState extends State<AddActionScreen> {
           builder: (context, setDState) {
             return AlertDialog(
               title: const Text('Add Another External User'),
-              content: SizedBox(
-                width: 450,
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 450),
                 child: Form(
                   key: fKey,
                   child: SingleChildScrollView(
@@ -3323,8 +3323,8 @@ class _AddActionScreenState extends State<AddActionScreen> {
 
         return AlertDialog(
           title: const Text('Edit External User'),
-          content: SizedBox(
-            width: 450,
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 450),
             child: Form(
               key: fKey,
               child: SingleChildScrollView(

@@ -662,8 +662,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ),
               ],
             ),
-            content: SizedBox(
-              width: 480,
+            content: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 480),
               child: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -1068,7 +1068,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
               Expanded(
                 child: Column(
                   children: [
-                    _buildTopHeader(context, isDesktop: isDesktop),
+                    _buildTopHeader(
+                      context,
+                      isDesktop: isDesktop,
+                      isTablet: isTablet,
+                    ),
                     Expanded(
                       child: SelectionArea(
                         child: AnimatedSwitcher(
@@ -1091,7 +1095,11 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
     );
   }
 
-  Widget _buildTopHeader(BuildContext context, {required bool isDesktop}) {
+  Widget _buildTopHeader(
+    BuildContext context, {
+    required bool isDesktop,
+    bool isTablet = false,
+  }) {
     return Container(
       height: 60,
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -1135,7 +1143,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ),
           ),
           const SizedBox(width: 16),
-          if (isDesktop)
+          if (isDesktop || isTablet)
             Expanded(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 380),
@@ -1150,11 +1158,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                       final results = <_GlobalSearchResult>[];
 
                       // 1. Match People/Users
-                      final allPeople =
-                          _realUsers ??
-                          (!SupabaseConfig.isInitialized
-                              ? MockPeopleStore.instance.people
-                              : <Person>[]);
+                      final allPeople = _realUsers ?? <Person>[];
                       for (final p in allPeople) {
                         final n = p.name.toLowerCase();
                         final e = p.email.toLowerCase();
@@ -1360,7 +1364,7 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                             ),
                             decoration: InputDecoration(
                               hintText:
-                                  'Search actions, users, sites, settings...',
+                                  'Search users, departments, sites, settings...',
                               hintStyle: TextStyle(
                                 fontSize: 13,
                                 color: AppTheme.textMuted(context),
@@ -1400,6 +1404,15 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                   ),
                 ),
               ),
+            ),
+          if (!isDesktop && !isTablet)
+            IconButton(
+              icon: Icon(
+                Icons.search_rounded,
+                color: AppTheme.textPrimary(context),
+              ),
+              tooltip: 'Search administration',
+              onPressed: () => _showSearchDialog(context),
             ),
           const Spacer(),
           // Global Light/Dark Theme Switcher
@@ -1529,6 +1542,139 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
                 ],
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSearchDialog(BuildContext context) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppTheme.cardBg(ctx),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        title: Text(
+          'Search Administration',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: AppTheme.textPrimary(ctx),
+          ),
+        ),
+        content: SizedBox(
+          width: 340,
+          child: Autocomplete<_GlobalSearchResult>(
+            optionsBuilder: (textEditingValue) {
+              final q = textEditingValue.text.trim().toLowerCase();
+              if (q.isEmpty) {
+                return const Iterable<_GlobalSearchResult>.empty();
+              }
+              final results = <_GlobalSearchResult>[];
+              final allPeople = _realUsers ?? <Person>[];
+              for (final p in allPeople) {
+                final n = p.name.toLowerCase();
+                final e = p.email.toLowerCase();
+                final d = p.department.toLowerCase();
+                final des = p.designation.toLowerCase();
+                if (n.contains(q) ||
+                    e.contains(q) ||
+                    d.contains(q) ||
+                    des.contains(q)) {
+                  results.add(
+                    _GlobalSearchResult(
+                      title: p.name,
+                      subtitle:
+                          '${p.roleLabel} • ${p.department.isNotEmpty ? p.department : "General"}',
+                      icon: Icons.person_rounded,
+                      iconColor: const Color(0xFF0284C7),
+                      targetTabIndex: 1,
+                      onSelect: () {
+                        Navigator.of(ctx).pop();
+                        setState(() {
+                          _selectedNavIndex = 1;
+                          _userSearchQuery = p.name;
+                          _userSearchController.text = p.name;
+                        });
+                      },
+                    ),
+                  );
+                }
+                if (results.length >= 6) break;
+              }
+              for (final d in _departments) {
+                final name = d['name']?.toString() ?? '';
+                final code = d['code']?.toString() ?? '';
+                if (name.toLowerCase().contains(q) ||
+                    code.toLowerCase().contains(q)) {
+                  results.add(
+                    _GlobalSearchResult(
+                      title: name,
+                      subtitle: 'Department (${code.isNotEmpty ? code : "DEP"})',
+                      icon: Icons.business_rounded,
+                      iconColor: const Color(0xFF7C3AED),
+                      targetTabIndex: 2,
+                      onSelect: () {
+                        Navigator.of(ctx).pop();
+                        setState(() => _selectedNavIndex = 2);
+                      },
+                    ),
+                  );
+                }
+                if (results.length >= 8) break;
+              }
+              for (final s in _sites) {
+                final name = s['name']?.toString() ?? '';
+                final loc = s['location']?.toString() ?? '';
+                if (name.toLowerCase().contains(q) ||
+                    loc.toLowerCase().contains(q)) {
+                  results.add(
+                    _GlobalSearchResult(
+                      title: name,
+                      subtitle:
+                          'Facility Site • ${loc.isNotEmpty ? loc : "Operational"}',
+                      icon: Icons.location_on_rounded,
+                      iconColor: const Color(0xFF0D9488),
+                      targetTabIndex: 3,
+                      onSelect: () {
+                        Navigator.of(ctx).pop();
+                        setState(() => _selectedNavIndex = 3);
+                      },
+                    ),
+                  );
+                }
+                if (results.length >= 10) break;
+              }
+              return results;
+            },
+            displayStringForOption: (option) => option.title,
+            onSelected: (option) => option.onSelect(),
+            fieldViewBuilder:
+                (ctx, textController, focusNode, onFieldSubmitted) {
+              return TextField(
+                controller: textController,
+                focusNode: focusNode,
+                autofocus: true,
+                onSubmitted: (val) {
+                  Navigator.of(ctx).pop();
+                  _handleGlobalSearch(val);
+                },
+                decoration: InputDecoration(
+                  hintText: 'Search users, departments, sites...',
+                  prefixIcon: const Icon(Icons.search_rounded, size: 18),
+                  filled: true,
+                  fillColor: AppTheme.inputFill(ctx),
+                  border:
+                      OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              );
+            },
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
           ),
         ],
       ),
@@ -6778,8 +6924,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (dialogCtx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Add Action Section'),
-          content: SizedBox(
-            width: 400,
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -6909,8 +7055,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (dialogCtx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Edit Action Section'),
-          content: SizedBox(
-            width: 400,
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -7520,8 +7666,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (dialogCtx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Add Division'),
-          content: SizedBox(
-            width: 400,
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -7668,8 +7814,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
       builder: (dialogCtx) => StatefulBuilder(
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Edit Division'),
-          content: SizedBox(
-            width: 400,
+          content: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 400),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -10132,8 +10278,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             _buildAuthStatusBadge(req.status),
           ],
         ),
-        content: SizedBox(
-          width: 500,
+        content: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 500),
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -10297,8 +10443,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
         ),
         content: Form(
           key: formKey,
-          child: SizedBox(
-            width: 480,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 480),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -11199,8 +11345,8 @@ class _AdminDashboardScreenState extends State<AdminDashboardScreen> {
             ],
           ),
           content: SingleChildScrollView(
-            child: SizedBox(
-              width: 420,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,

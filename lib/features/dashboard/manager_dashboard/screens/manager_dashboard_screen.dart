@@ -50,6 +50,8 @@ import 'package:action_flow/features/requests/services/request_service.dart';
 import 'package:action_flow/features/requests/screens/new_request_screen.dart';
 import 'package:action_flow/features/requests/screens/request_approval_screen.dart';
 import 'package:action_flow/features/requests/screens/my_requests_screen.dart';
+import 'package:action_flow/features/requests/screens/request_details_screen.dart';
+import 'package:action_flow/widgets/search/global_search_autocomplete.dart';
 import 'action_details_screen.dart';
 import 'add_action_screen.dart';
 import 'manager_action_update_screen.dart';
@@ -814,6 +816,25 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
     }
 
     _openActionDetails(match);
+  }
+
+  void _handleRequestTap(String requestId, [RequestRecord? initialRequest]) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => RequestDetailsScreen(
+          requestId: requestId,
+          initialRequest: initialRequest,
+          currentUserId: _managerProfile.id,
+          currentUserName: _managerProfile.name,
+          currentUserRole: _managerProfile.role,
+          currentUserEmail: _managerProfile.email,
+          organizationId: _managerProfile.organizationId ??
+              _managerContext?.organizationId ??
+              '',
+          isManager: true,
+        ),
+      ),
+    );
   }
 
   void _openUpdateAction(ActionRecord action) {
@@ -1945,7 +1966,9 @@ class _ManagerDashboardScreenState extends State<ManagerDashboardScreen> {
                         userId: currentUserId,
                         organizationId: _managerProfile.organizationId ??
                             _managerContext?.organizationId,
+                        cachedActions: _actions,
                         onActionTap: _handleNotificationActionTap,
+                        onRequestTap: _handleRequestTap,
                         onNotificationItemTap: _handleNotificationTap,
                       onProfileTap: () {
                         setState(() {
@@ -2833,7 +2856,9 @@ class _TopHeader extends StatelessWidget {
     required this.profile,
     this.userId,
     this.organizationId,
+    this.cachedActions,
     this.onActionTap,
+    this.onRequestTap,
     this.onNotificationItemTap,
     this.onProfileTap,
     this.onNotificationTap,
@@ -2847,7 +2872,9 @@ class _TopHeader extends StatelessWidget {
   final UserProfile profile;
   final String? userId;
   final String? organizationId;
+  final List<ActionRecord>? cachedActions;
   final void Function(String actionId)? onActionTap;
+  final void Function(String requestId, RequestRecord? request)? onRequestTap;
   final void Function(AppNotification notification)? onNotificationItemTap;
   final VoidCallback? onProfileTap;
   final VoidCallback? onNotificationTap;
@@ -2901,58 +2928,30 @@ class _TopHeader extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                   ],
-                  // Search Box
-                  SizedBox(
+                  // Enterprise Global Search Autocomplete
+                  GlobalSearchAutocomplete(
+                    controller: searchController,
+                    cachedActions: cachedActions,
+                    organizationId: organizationId,
+                    currentUserId: userId,
+                    currentUserRole: profile.role.isNotEmpty ? profile.role : 'Manager',
                     width: isNarrow
                         ? (isSmall ? 130 : 160)
                         : (constraints.maxWidth > 900 ? 300 : 220),
                     height: 38,
-                    child: TextField(
-                      controller: searchController,
-                      onChanged: onSearchChanged,
-                      style: TextStyle(
-                        fontSize: 13,
-                        color: AppTheme.textPrimary(context),
-                      ),
-                      decoration: InputDecoration(
-                        hintText: isNarrow
-                            ? 'Search actions...'
-                            : 'Search actions, projects, people',
-                        hintStyle: TextStyle(
-                          fontSize: 12.5,
-                          color: AppTheme.textMuted(context),
-                        ),
-                        prefixIcon: Icon(
-                          Icons.search_rounded,
-                          size: 18,
-                          color: AppTheme.textSecondary(context),
-                        ),
-                        filled: true,
-                        fillColor: AppTheme.inputFill(context),
-                        contentPadding: const EdgeInsets.symmetric(
-                          vertical: 0,
-                          horizontal: 10,
-                        ),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: AppTheme.inputBorder(context),
-                          ),
-                        ),
-                        enabledBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: BorderSide(
-                            color: AppTheme.inputBorder(context),
-                          ),
-                        ),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8),
-                          borderSide: const BorderSide(
-                            color: Color(0xFF1565C0),
-                          ),
-                        ),
-                      ),
-                    ),
+                    hintText: isNarrow
+                        ? 'Search actions, requests...'
+                        : 'Search actions, requests, people',
+                    onSearchChanged: onSearchChanged,
+                    onActionSelected: (item) {
+                      onActionTap?.call(item.referenceNumber);
+                    },
+                    onRequestSelected: (item) {
+                      final req = item.rawRecord is RequestRecord
+                          ? item.rawRecord as RequestRecord
+                          : null;
+                      onRequestTap?.call(item.id, req);
+                    },
                   ),
                 ],
               ),

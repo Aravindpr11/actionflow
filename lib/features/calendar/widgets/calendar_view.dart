@@ -454,8 +454,8 @@ class _ActionFlowCalendarViewState extends State<ActionFlowCalendarView> {
                   ),
                 ],
               ),
-              content: SizedBox(
-                width: 460,
+              content: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 460),
                 child: Form(
                   key: formKey,
                   child: SingleChildScrollView(

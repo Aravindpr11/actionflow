@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_theme.dart';
 import '../../../services/notification_service.dart';
@@ -38,18 +39,24 @@ class QuickAlertToast extends StatefulWidget {
 
     entry = OverlayEntry(
       builder: (ctx) {
+        final screenWidth = MediaQuery.sizeOf(ctx).width;
+        final isMobile = screenWidth < 440;
         return Positioned(
           bottom: 24,
-          right: 24,
-          child: QuickAlertToast(
-            notification: notification,
-            onActionTap: onActionTap,
-            onNotificationTap: onNotificationTap,
-            onView: onView,
-            duration: duration,
-            onDismiss: () {
-              entry.remove();
-            },
+          right: isMobile ? 16 : 24,
+          left: isMobile ? 16 : null,
+          child: Align(
+            alignment: isMobile ? Alignment.bottomCenter : Alignment.bottomRight,
+            child: QuickAlertToast(
+              notification: notification,
+              onActionTap: onActionTap,
+              onNotificationTap: onNotificationTap,
+              onView: onView,
+              duration: duration,
+              onDismiss: () {
+                entry.remove();
+              },
+            ),
           ),
         );
       },
@@ -157,7 +164,9 @@ class _QuickAlertToastState extends State<QuickAlertToast>
         child: Material(
           color: Colors.transparent,
           child: Container(
-            width: 380,
+            constraints: BoxConstraints(
+              maxWidth: math.min(380.0, MediaQuery.sizeOf(context).width - 32.0),
+            ),
             decoration: BoxDecoration(
               color: cardBg,
               borderRadius: BorderRadius.circular(12),
