@@ -2947,7 +2947,9 @@ class _TopHeader extends StatelessWidget {
                         : 'Search actions, requests, people',
                     onSearchChanged: onSearchChanged,
                     onActionSelected: (item) {
-                      onActionTap?.call(item.referenceNumber);
+                      onActionTap?.call(
+                        item.id.isNotEmpty ? item.id : item.referenceNumber,
+                      );
                     },
                     onRequestSelected: (item) {
                       final req = item.rawRecord is RequestRecord

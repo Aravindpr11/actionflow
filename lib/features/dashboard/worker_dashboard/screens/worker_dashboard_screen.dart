@@ -6482,7 +6482,9 @@ class _WorkerTopHeader extends StatelessWidget {
                         : 'Search my actions, requests...',
                     onSearchChanged: onSearchChanged,
                     onActionSelected: (item) {
-                      onActionTap?.call(item.referenceNumber);
+                      onActionTap?.call(
+                        item.id.isNotEmpty ? item.id : item.referenceNumber,
+                      );
                     },
                     onRequestSelected: (item) {
                       final req = item.rawRecord is RequestRecord
